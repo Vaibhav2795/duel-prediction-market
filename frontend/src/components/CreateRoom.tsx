@@ -40,17 +40,11 @@ export default function CreateRoom({ playerAddress, onRoomCreated }: CreateRoomP
     };
 
     return (
-        <div style={{
-            background: 'white',
-            padding: '20px',
-            borderRadius: '10px',
-            maxWidth: '400px',
-            margin: '0 auto'
-        }}>
-            <h2 style={{ marginBottom: '20px', color: '#333' }}>Create New Room</h2>
+        <div className="bg-white p-5 rounded-xl max-w-md mx-auto">
+            <h2 className="mb-5 text-gray-800 text-xl font-semibold">Create New Room</h2>
             <form onSubmit={handleCreateRoom}>
-                <div style={{ marginBottom: '15px' }}>
-                    <label style={{ display: 'block', marginBottom: '5px', color: '#666' }}>
+                <div className="mb-4">
+                    <label className="block mb-1 text-gray-600">
                         Entry Fee (USD):
                     </label>
                     <input
@@ -61,29 +55,17 @@ export default function CreateRoom({ playerAddress, onRoomCreated }: CreateRoomP
                         onChange={(e) => setEntryFee(e.target.value)}
                         placeholder="e.g., 10.00"
                         required
-                        style={{
-                            width: '100%',
-                            padding: '10px',
-                            border: '1px solid #ddd',
-                            borderRadius: '5px',
-                            fontSize: '14px',
-                        }}
+                        className="w-full p-2.5 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
                     />
                 </div>
-                <div style={{ marginBottom: '15px' }}>
-                    <label style={{ display: 'block', marginBottom: '5px', color: '#666' }}>
+                <div className="mb-4">
+                    <label className="block mb-1 text-gray-600">
                         Currency:
                     </label>
                     <select
                         value={currency}
                         onChange={(e) => setCurrency(e.target.value)}
-                        style={{
-                            width: '100%',
-                            padding: '10px',
-                            border: '1px solid #ddd',
-                            borderRadius: '5px',
-                            fontSize: '14px',
-                        }}
+                        className="w-full p-2.5 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
                     >
                         <option value="USD">USD</option>
                         <option value="USDC">USDC</option>
@@ -94,17 +76,11 @@ export default function CreateRoom({ playerAddress, onRoomCreated }: CreateRoomP
                 <button
                     type="submit"
                     disabled={loading}
-                    style={{
-                        width: '100%',
-                        padding: '12px',
-                        background: loading ? '#ccc' : '#667eea',
-                        color: 'white',
-                        border: 'none',
-                        borderRadius: '5px',
-                        cursor: loading ? 'not-allowed' : 'pointer',
-                        fontWeight: 'bold',
-                        fontSize: '16px',
-                    }}
+                    className={`w-full py-3 text-white border-none rounded-md font-bold text-base transition-colors ${
+                        loading 
+                            ? 'bg-gray-400 cursor-not-allowed' 
+                            : 'bg-indigo-500 cursor-pointer hover:bg-indigo-600'
+                    }`}
                 >
                     {loading ? 'Creating...' : 'Create Room'}
                 </button>

@@ -4,13 +4,14 @@ import ChessBoard from './components/ChessBoard';
 import RoomList from './components/RoomList';
 import CreateRoom from './components/CreateRoom';
 import { socketService } from './services/socketService';
+import { useMovementWallet } from './hooks/useMovementWallet';
 import type { Room } from './types/game';
-import './App.css';
 
 type View = 'lobby' | 'game';
 
 function App() {
     const { ready, authenticated, user, login, logout } = usePrivy();
+    const { movementWallet, isMovementWallet, getAddress: getMovementAddress } = useMovementWallet();
     const [view, setView] = useState<View>('lobby');
     const [currentRoom, setCurrentRoom] = useState<Room | null>(null);
     const [playerAddress, setPlayerAddress] = useState<string>('');
@@ -18,9 +19,19 @@ function App() {
     const [showCreateRoom, setShowCreateRoom] = useState(false);
 
     // Get wallet address from Privy
+    // Support both regular wallets and Movement chain wallets
     useEffect(() => {
         if (ready && authenticated && user) {
-            // Get the wallet address from Privy user
+            // Check if this is a Movement wallet first
+            if (isMovementWallet && movementWallet) {
+                const address = getMovementAddress();
+                if (address) {
+                    setPlayerAddress(address);
+                    return;
+                }
+            }
+            
+            // Fallback to regular wallet address
             const wallet = user.wallet;
             if (wallet?.address) {
                 setPlayerAddress(wallet.address);
@@ -31,7 +42,7 @@ function App() {
         } else if (ready && !authenticated) {
             setPlayerAddress('');
         }
-    }, [ready, authenticated, user]);
+    }, [ready, authenticated, user, isMovementWallet, movementWallet, getMovementAddress]);
 
     useEffect(() => {
         // Initialize socket connection only when authenticated
@@ -132,14 +143,9 @@ function App() {
     // Show loading state while Privy initializes
     if (!ready) {
         return (
-            <div className="app">
-                <div className="container">
-                    <div style={{ 
-                        textAlign: 'center', 
-                        padding: '50px', 
-                        color: 'white',
-                        fontSize: '18px'
-                    }}>
+            <div className="min-h-screen flex justify-center items-start p-5">
+                <div className="w-full max-w-6xl">
+                    <div className="text-center py-12 text-white text-lg">
                         Loading...
                     </div>
                 </div>
@@ -150,26 +156,16 @@ function App() {
     // Show login screen if not authenticated
     if (!authenticated) {
         return (
-            <div className="app">
-                <div className="container">
-                    <header className="header">
-                        <h1>♟️ Chess Duel Platform</h1>
-                        <p style={{ color: 'white', marginTop: '20px', marginBottom: '30px' }}>
+            <div className="min-h-screen flex justify-center items-start p-5">
+                <div className="w-full max-w-6xl">
+                    <header className="text-center mb-8 text-white">
+                        <h1 className="text-4xl mb-2 drop-shadow-lg">♟️ Chess Duel Platform</h1>
+                        <p className="text-white mt-5 mb-8">
                             Connect your wallet to start playing
                         </p>
                         <button
                             onClick={login}
-                            style={{
-                                padding: '15px 30px',
-                                background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-                                color: 'white',
-                                border: 'none',
-                                borderRadius: '8px',
-                                cursor: 'pointer',
-                                fontWeight: 'bold',
-                                fontSize: '16px',
-                                boxShadow: '0 4px 15px rgba(102, 126, 234, 0.4)',
-                            }}
+                            className="px-8 py-4 bg-gradient-to-r from-indigo-500 to-purple-600 text-white border-none rounded-lg cursor-pointer font-bold text-base shadow-lg hover:shadow-xl transition-shadow"
                         >
                             Connect Wallet
                         </button>
@@ -180,13 +176,13 @@ function App() {
     }
 
     return (
-        <div className="app">
-            <div className="container">
-                <header className="header">
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', width: '100%' }}>
+        <div className="min-h-screen flex justify-center items-start p-5">
+            <div className="w-full max-w-6xl">
+                <header className="text-center mb-8 text-white">
+                    <div className="flex justify-between items-center w-full">
                         <div>
-                            <h1>♟️ Chess Duel Platform</h1>
-                            <p style={{ color: 'white', marginTop: '10px' }}>
+                            <h1 className="text-4xl mb-2 drop-shadow-lg">♟️ Chess Duel Platform</h1>
+                            <p className="text-white mt-2">
                                 {user?.wallet?.address 
                                     ? `Wallet: ${user.wallet.address.slice(0, 6)}...${user.wallet.address.slice(-4)}`
                                     : `User: ${playerAddress.slice(0, 10)}...`}
@@ -194,16 +190,7 @@ function App() {
                         </div>
                         <button
                             onClick={logout}
-                            style={{
-                                padding: '10px 20px',
-                                background: 'rgba(255, 255, 255, 0.2)',
-                                color: 'white',
-                                border: '1px solid rgba(255, 255, 255, 0.3)',
-                                borderRadius: '8px',
-                                cursor: 'pointer',
-                                fontWeight: '600',
-                                fontSize: '14px',
-                            }}
+                            className="px-5 py-2 bg-white/20 text-white border border-white/30 rounded-lg cursor-pointer font-semibold text-sm hover:bg-white/30 transition-colors"
                         >
                             Disconnect
                         </button>
@@ -211,27 +198,19 @@ function App() {
                 </header>
 
                 {error && (
-                    <div className="error-message">
+                    <div className="bg-red-500 text-white p-4 rounded-lg mb-5 text-center font-bold">
                         {error}
                     </div>
                 )}
 
                 {view === 'lobby' && playerAddress && (
-                    <div className="lobby">
-                        <div style={{ marginBottom: '30px', textAlign: 'center' }}>
+                    <div className="flex flex-col gap-5">
+                        <div className="mb-8 text-center">
                             <button
                                 onClick={() => setShowCreateRoom(!showCreateRoom)}
-                                style={{
-                                    padding: '12px 24px',
-                                    background: showCreateRoom ? '#764ba2' : '#667eea',
-                                    color: 'white',
-                                    border: 'none',
-                                    borderRadius: '8px',
-                                    cursor: 'pointer',
-                                    fontWeight: 'bold',
-                                    fontSize: '16px',
-                                    marginRight: '10px',
-                                }}
+                                className={`px-6 py-3 text-white border-none rounded-lg cursor-pointer font-bold text-base mr-2 ${
+                                    showCreateRoom ? 'bg-purple-600' : 'bg-indigo-500'
+                                } hover:opacity-90 transition-opacity`}
                             >
                                 {showCreateRoom ? 'Cancel' : 'Create Room'}
                             </button>
@@ -252,45 +231,26 @@ function App() {
                 )}
 
                 {view === 'lobby' && !playerAddress && (
-                    <div style={{ 
-                        textAlign: 'center', 
-                        padding: '50px', 
-                        color: 'white',
-                        fontSize: '18px'
-                    }}>
+                    <div className="text-center py-12 text-white text-lg">
                         Connecting wallet...
                     </div>
                 )}
 
                 {view === 'game' && currentRoom && playerAddress && (
-                    <div className="game">
-                        <div style={{ marginBottom: '20px', textAlign: 'center' }}>
+                    <div className="flex flex-col items-center">
+                        <div className="mb-5 text-center">
                             <button
                                 onClick={handleBackToLobby}
-                                style={{
-                                    padding: '10px 20px',
-                                    background: '#764ba2',
-                                    color: 'white',
-                                    border: 'none',
-                                    borderRadius: '5px',
-                                    cursor: 'pointer',
-                                    fontWeight: 'bold',
-                                }}
+                                className="px-5 py-2 bg-purple-600 text-white border-none rounded cursor-pointer font-bold hover:bg-purple-700 transition-colors"
                             >
                                 ← Back to Lobby
                             </button>
                         </div>
-                        <div style={{
-                            background: 'white',
-                            padding: '20px',
-                            borderRadius: '10px',
-                            marginBottom: '20px',
-                            textAlign: 'center'
-                        }}>
-                            <h2>Room: {currentRoom.id.slice(0, 8)}...</h2>
-                            <p>Entry Fee: {currentRoom.entryFee.toFixed(2)} {currentRoom.currency}</p>
-                            <p>Status: {currentRoom.status}</p>
-                            <p>Players: {currentRoom.players.length}/2</p>
+                        <div className="bg-white p-5 rounded-xl mb-5 text-center">
+                            <h2 className="text-2xl font-bold mb-2">Room: {currentRoom.id.slice(0, 8)}...</h2>
+                            <p className="text-gray-700">Entry Fee: {currentRoom.entryFee.toFixed(2)} {currentRoom.currency}</p>
+                            <p className="text-gray-700">Status: {currentRoom.status}</p>
+                            <p className="text-gray-700">Players: {currentRoom.players.length}/2</p>
                         </div>
                         {currentRoom.players.length === 2 && currentRoom.status === 'active' ? (
                             <ChessBoard
@@ -299,16 +259,11 @@ function App() {
                                 onGameOver={handleGameOver}
                             />
                         ) : (
-                            <div style={{
-                                background: 'white',
-                                padding: '40px',
-                                borderRadius: '10px',
-                                textAlign: 'center'
-                            }}>
-                                <p style={{ fontSize: '18px', color: '#666' }}>
+                            <div className="bg-white p-10 rounded-xl text-center">
+                                <p className="text-lg text-gray-600">
                                     Waiting for opponent to join...
                                 </p>
-                                <p style={{ marginTop: '10px', color: '#999' }}>
+                                <p className="mt-2 text-gray-400">
                                     {currentRoom.players.length}/2 players
                                 </p>
                             </div>

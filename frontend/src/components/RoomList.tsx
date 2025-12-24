@@ -34,54 +34,37 @@ export default function RoomList({ onJoinRoom }: RoomListProps) {
     }, []);
 
     if (loading) {
-        return <div style={{ color: 'white', textAlign: 'center' }}>Loading rooms...</div>;
+        return <div className="text-white text-center">Loading rooms...</div>;
     }
 
     return (
-        <div style={{
-            background: 'white',
-            padding: '20px',
-            borderRadius: '10px',
-            maxWidth: '600px',
-            margin: '0 auto'
-        }}>
-            <h2 style={{ marginBottom: '20px', color: '#333' }}>Available Rooms</h2>
+        <div className="bg-white p-5 rounded-xl max-w-2xl mx-auto">
+            <h2 className="mb-5 text-gray-800 text-xl font-semibold">Available Rooms</h2>
             {rooms.length === 0 ? (
-                <p style={{ color: '#666', textAlign: 'center' }}>No available rooms. Create one to start!</p>
+                <p className="text-gray-600 text-center">No available rooms. Create one to start!</p>
             ) : (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                <div className="flex flex-col gap-2.5">
                     {rooms.map((room) => (
                         <div
                             key={room.id}
-                            style={{
-                                padding: '15px',
-                                border: '1px solid #ddd',
-                                borderRadius: '8px',
-                                display: 'flex',
-                                justifyContent: 'space-between',
-                                alignItems: 'center',
-                            }}
+                            className="p-4 border border-gray-300 rounded-lg flex justify-between items-center hover:shadow-md transition-shadow"
                         >
                             <div>
-                                <p style={{ fontWeight: 'bold', marginBottom: '5px' }}>
+                                <p className="font-bold mb-1 text-gray-800">
                                     Room: {room.id.slice(0, 8)}...
                                 </p>
-                                <p style={{ color: '#666', fontSize: '14px' }}>
+                                <p className="text-gray-600 text-sm">
                                     Entry Fee: {room.entryFee.toFixed(2)} {room.currency} | Players: {room.players.length}/2
                                 </p>
                             </div>
                             <button
                                 onClick={() => onJoinRoom(room.id)}
                                 disabled={room.players.length >= 2}
-                                style={{
-                                    padding: '10px 20px',
-                                    background: room.players.length >= 2 ? '#ccc' : '#667eea',
-                                    color: 'white',
-                                    border: 'none',
-                                    borderRadius: '5px',
-                                    cursor: room.players.length >= 2 ? 'not-allowed' : 'pointer',
-                                    fontWeight: 'bold',
-                                }}
+                                className={`px-5 py-2.5 text-white border-none rounded-md font-bold transition-colors ${
+                                    room.players.length >= 2 
+                                        ? 'bg-gray-400 cursor-not-allowed' 
+                                        : 'bg-indigo-500 cursor-pointer hover:bg-indigo-600'
+                                }`}
                             >
                                 {room.players.length >= 2 ? 'Full' : 'Join'}
                             </button>
