@@ -1,5 +1,5 @@
 import { io, Socket } from "socket.io-client";
-import type { Room, GameMove } from "../types/game";
+import type { Room, GameMove, Market, Bet, Position, UserPortfolio, MarketStats, Outcome, MarketStatus, MarketCategory } from "../types/game";
 
 class SocketService {
 	private socket: Socket | null = null;
@@ -121,6 +121,113 @@ class SocketService {
 	// Remove event listeners
 	off(event: string, callback?: (...args: any[]) => void): void {
 		this.socket?.off(event, callback);
+	}
+
+	// === MARKET / BETTING EVENTS ===
+
+	// Get markets with filters
+	getMarkets(filters?: {
+		status?: MarketStatus | "all";
+		category?: MarketCategory | "all";
+		search?: string;
+		sortBy?: "volume" | "newest" | "ending";
+		limit?: number;
+		offset?: number;
+	}): void {
+		this.socket?.emit("get_markets", filters);
+	}
+
+	// Get single market
+	getMarket(marketId: string): void {
+		this.socket?.emit("get_market", marketId);
+	}
+
+	// Subscribe to real-time market updates
+	subscribeToMarket(marketId: string): void {
+		this.socket?.emit("subscribe_market", marketId);
+	}
+
+	// Unsubscribe from market updates
+	unsubscribeFromMarket(marketId: string): void {
+		this.socket?.emit("unsubscribe_market", marketId);
+	}
+
+	// Get market bets
+	getMarketBets(marketId: string, limit?: number): void {
+		this.socket?.emit("get_market_bets", { marketId, limit });
+	}
+
+	// Place a bet
+	placeBet(
+		marketId: string,
+		userAddress: string,
+		outcome: Outcome,
+		side: "yes" | "no",
+		amount: number
+	): void {
+		this.socket?.emit("place_bet", { marketId, userAddress, outcome, side, amount });
+	}
+
+	// Get user positions
+	getUserPositions(userAddress: string): void {
+		this.socket?.emit("get_user_positions", userAddress);
+	}
+
+	// Get user portfolio
+	getUserPortfolio(userAddress: string): void {
+		this.socket?.emit("get_user_portfolio", userAddress);
+	}
+
+	// Get market stats
+	getMarketStats(): void {
+		this.socket?.emit("get_market_stats");
+	}
+
+	// Get trending markets
+	getTrendingMarkets(limit?: number): void {
+		this.socket?.emit("get_trending_markets", limit);
+	}
+
+	// === MARKET EVENT LISTENERS ===
+
+	onMarketsList(callback: (data: { markets: Market[]; total: number }) => void): void {
+		this.socket?.on("markets_list", callback);
+	}
+
+	onMarketDetails(callback: (market: Market) => void): void {
+		this.socket?.on("market_details", callback);
+	}
+
+	onMarketUpdated(callback: (market: Market) => void): void {
+		this.socket?.on("market_updated", callback);
+	}
+
+	onMarketBets(callback: (data: { marketId: string; bets: Bet[] }) => void): void {
+		this.socket?.on("market_bets", callback);
+	}
+
+	onBetPlaced(callback: (data: { success: boolean; bet?: Bet; error?: string }) => void): void {
+		this.socket?.on("bet_placed", callback);
+	}
+
+	onUserPositions(callback: (positions: Position[]) => void): void {
+		this.socket?.on("user_positions", callback);
+	}
+
+	onUserPortfolio(callback: (portfolio: UserPortfolio) => void): void {
+		this.socket?.on("user_portfolio", callback);
+	}
+
+	onMarketStats(callback: (stats: MarketStats) => void): void {
+		this.socket?.on("market_stats", callback);
+	}
+
+	onTrendingMarkets(callback: (markets: Market[]) => void): void {
+		this.socket?.on("trending_markets", callback);
+	}
+
+	onBettingError(callback: (error: { message: string }) => void): void {
+		this.socket?.on("betting_error", callback);
 	}
 }
 

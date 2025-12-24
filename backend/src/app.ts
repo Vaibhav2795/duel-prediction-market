@@ -4,6 +4,8 @@ import cors from "cors"
 import morgan from "morgan"
 import path from "path";
 import { fileURLToPath } from "url";
+import marketsRouter from "./routes/markets.js";
+import positionsRouter from "./routes/positions.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -18,7 +20,9 @@ app.use(morgan("dev"));
 const publicPath = path.join(__dirname, "../public");
 app.use(express.static(publicPath));
 
-// API routes would go here before the catch-all
+// API routes
+app.use("/api/markets", marketsRouter);
+app.use("/api/positions", positionsRouter);
 
 // Catch all handler: send back React's index.html file for SPA routing
 app.get("*", (_req, res) => {

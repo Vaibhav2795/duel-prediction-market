@@ -1,3 +1,5 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap');
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
@@ -7,18 +9,120 @@
 		@apply box-border;
 	}
 	
+	html {
+		@apply scroll-smooth;
+	}
+	
 	body {
-		@apply min-h-screen p-5;
-		background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-		font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Roboto",
-			"Oxygen", "Ubuntu", "Cantarell", "Fira Sans", "Droid Sans",
-			"Helvetica Neue", sans-serif;
-		-webkit-font-smoothing: antialiased;
-		-moz-osx-font-smoothing: grayscale;
+		@apply min-h-screen bg-dark-500 text-text-primary font-sans antialiased;
 	}
 	
 	code {
-		font-family: source-code-pro, Menlo, Monaco, Consolas, "Courier New",
-			monospace;
+		@apply font-mono;
+	}
+
+	/* Custom scrollbar */
+	::-webkit-scrollbar {
+		@apply w-2;
+	}
+	
+	::-webkit-scrollbar-track {
+		@apply bg-dark-400;
+	}
+	
+	::-webkit-scrollbar-thumb {
+		@apply bg-dark-50 rounded-full;
+	}
+	
+	::-webkit-scrollbar-thumb:hover {
+		@apply bg-border-secondary;
+	}
+
+	/* Focus styles */
+	:focus-visible {
+		@apply outline-none ring-2 ring-accent ring-offset-2 ring-offset-dark-500;
+	}
+}
+
+@layer components {
+	/* Card component */
+	.card {
+		@apply bg-dark-200 rounded-xl border border-border p-4 shadow-card transition-all duration-200;
+	}
+	
+	.card:hover {
+		@apply bg-dark-100 shadow-card-hover border-border-secondary;
+	}
+
+	/* Button variants */
+	.btn {
+		@apply px-4 py-2 rounded-lg font-medium transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-dark-500;
+	}
+	
+	.btn-primary {
+		@apply bg-accent text-dark-500 hover:bg-accent-hover focus:ring-accent;
+	}
+	
+	.btn-secondary {
+		@apply bg-dark-200 text-text-primary border border-border hover:bg-dark-100 hover:border-border-secondary focus:ring-border;
+	}
+	
+	.btn-yes {
+		@apply bg-yes-bg text-yes border border-yes/30 hover:bg-yes hover:text-dark-500 focus:ring-yes;
+	}
+	
+	.btn-no {
+		@apply bg-no-bg text-no border border-no/30 hover:bg-no hover:text-white focus:ring-no;
+	}
+
+	/* Input styles */
+	.input {
+		@apply w-full px-4 py-3 bg-dark-300 border border-border rounded-lg text-text-primary placeholder-text-tertiary focus:outline-none focus:border-accent focus:shadow-input transition-all duration-200;
+	}
+
+	/* Badge styles */
+	.badge {
+		@apply inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium;
+	}
+	
+	.badge-active {
+		@apply bg-status-active-bg text-status-active;
+	}
+	
+	.badge-ending {
+		@apply bg-status-ending-bg text-status-ending;
+	}
+	
+	.badge-resolved {
+		@apply bg-status-resolved-bg text-status-resolved;
+	}
+	
+	.badge-live {
+		@apply bg-status-live-bg text-status-live;
+	}
+
+	/* Probability bar */
+	.prob-bar {
+		@apply h-2 rounded-full overflow-hidden bg-dark-300;
+	}
+	
+	.prob-bar-yes {
+		@apply h-full bg-yes rounded-full transition-all duration-500;
+	}
+	
+	.prob-bar-no {
+		@apply h-full bg-no rounded-full transition-all duration-500;
+	}
+}
+
+@layer utilities {
+	/* Text gradients */
+	.text-gradient {
+		@apply bg-clip-text text-transparent bg-gradient-to-r from-accent to-blue-500;
+	}
+	
+	/* Skeleton loading */
+	.skeleton {
+		@apply animate-pulse bg-dark-200 rounded;
 	}
 }
