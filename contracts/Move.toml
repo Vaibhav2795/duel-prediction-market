@@ -1,0 +1,15 @@
+[package]
+name = "chess-escrow"
+version = "1.0.0"
+authors = []
+
+[addresses]
+chess_escrow = "0xed101e6c098f47d3a9ff8cf2dae4331fc2a55848502942246878b2ab63b90b4d"
+
+
+[dependencies.AptosFramework]
+git = "https://github.com/movementlabsxyz/aptos-core.git"
+rev = "movement"
+subdir = "aptos-move/framework/aptos-framework"
+
+[dev-dependencies]
