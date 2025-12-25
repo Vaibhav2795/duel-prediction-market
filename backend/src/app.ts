@@ -6,6 +6,8 @@ import path from "path";
 import { fileURLToPath } from "url";
 import marketsRouter from "./routes/markets.js";
 import positionsRouter from "./routes/positions.js";
+import matchRoutes from "./routes/match.routes"
+import userRoutes from "./routes/user.routes"
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -28,5 +30,8 @@ app.use("/api/positions", positionsRouter);
 app.get("*", (_req, res) => {
 	res.sendFile(path.join(publicPath, "index.html"));
 });
+
+app.use("/matches", matchRoutes)
+app.use("/users", userRoutes)
 
 export default app

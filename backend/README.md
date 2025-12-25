@@ -7,6 +7,7 @@ Backend API and WebSocket server for the duel prediction market application.
 - **Runtime**: Node.js with ES Modules
 - **Language**: TypeScript
 - **Framework**: Express.js
+- **Database**: MongoDB with Mongoose
 - **WebSocket**: Socket.IO
 - **Logging**: Morgan
 - **CORS**: Enabled for cross-origin requests
@@ -17,6 +18,7 @@ Backend API and WebSocket server for the duel prediction market application.
 
 - Node.js (v18 or higher recommended)
 - npm or yarn
+- MongoDB (local installation or MongoDB Atlas account)
 
 ### Installation
 
@@ -36,6 +38,9 @@ Edit `.env` and configure:
 
 - `PORT` - Server port (default: 3000)
 - `NODE_ENV` - Environment (development/production)
+- `MONGODB_URI` - MongoDB connection string (default: mongodb://localhost:27017/duel-prediction-market)
+
+**Note**: For local MongoDB, make sure MongoDB is running. For MongoDB Atlas, use the connection string from your cluster.
 
 3. Build the TypeScript project (for production):
 
@@ -63,6 +68,7 @@ backend/
 │   ├── app.ts              # Express app configuration
 │   ├── server.ts           # HTTP server and Socket.IO initialization
 │   ├── config/             # Configuration files
+│   │   └── database.ts     # MongoDB connection configuration
 │   ├── controllers/        # Route controllers
 │   ├── routes/             # API routes
 │   ├── services/           # Business logic services
@@ -114,6 +120,7 @@ Create a `.env` file in the root directory with the following variables:
 ```env
 PORT=3000
 NODE_ENV=development
+MONGODB_URI=mongodb://localhost:27017/duel-prediction-market
 ```
 
 ## License
