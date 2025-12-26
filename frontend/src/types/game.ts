@@ -1,7 +1,7 @@
 export interface Player {
 	id: string;
 	socketId: string;
-	address: string; // Wallet address
+	address: string;
 	color: "white" | "black";
 }
 
@@ -10,10 +10,10 @@ export interface Room {
 	entryFee: number; // Entry fee in stable currency (USD)
 	currency: string; // Currency code (e.g., 'USD', 'USDC')
 	players: Player[];
-	gameState: string; // FEN notation
+	gameState: string;
 	status: "waiting" | "active" | "finished";
 	currentTurn: "white" | "black";
-	createdAt: Date;
+	createdAt: string;
 	winner?: "white" | "black" | "draw";
 }
 
@@ -21,17 +21,6 @@ export interface GameMove {
 	from: string;
 	to: string;
 	promotion?: string;
-}
-
-export interface RoomCreateRequest {
-	entryFee: number; // Entry fee in stable currency (USD)
-	currency?: string; // Currency code (defaults to 'USD')
-	playerAddress: string;
-}
-
-export interface RoomJoinRequest {
-	roomId: string;
-	playerAddress: string;
 }
 
 // Prediction Market Types
@@ -58,9 +47,9 @@ export interface Market {
 	totalVolume: number;
 	status: MarketStatus;
 	category: MarketCategory;
-	createdAt: Date;
-	endTime?: Date;
-	resolvedAt?: Date;
+	createdAt: string;
+	endTime?: string;
+	resolvedAt?: string;
 	resolvedOutcome?: Outcome;
 	playerWhite?: {
 		address: string;
@@ -80,7 +69,7 @@ export interface Bet {
 	amount: number;
 	price: number; // Price at time of bet
 	potentialPayout: number;
-	createdAt: Date;
+	createdAt: string;
 	side: "yes" | "no"; // Betting for or against the outcome
 }
 
@@ -114,29 +103,9 @@ export interface MarketStats {
 	volume24h: number;
 }
 
-export interface LiveMatch {
-  id: string // matchId
-  stakeAmount: number
-  players: Player[]
-  gameState: string // FEN
-  status: "waiting" | "active" | "finished"
-  currentTurn: "white" | "black"
-  createdAt: Date
-  winner?: "white" | "black" | "draw"
-}
-
-export interface GameMove {
-  from: string
-  to: string
-  promotion?: string
-}
-
-export interface JoinMatchRequest {
-  matchId: string
-  playerAddress: string
-}
-
-export interface JoinSpectatorRequest {
-  matchId: string
-  spectatorAddress?: string // optional, for analytics later
+export interface MarketFilters {
+	status?: MarketStatus | "all";
+	category?: MarketCategory | "all";
+	search?: string;
+	sortBy?: "volume" | "newest" | "ending";
 }

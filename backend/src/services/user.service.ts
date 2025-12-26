@@ -20,6 +20,19 @@ interface MatchHistoryItem {
 }
 
 class UserService {
+  async getUserByWallet(walletAddress: string) {
+    const user = await User.findOne({ walletAddress })
+    if (!user) return null
+    
+    return {
+      id: user._id.toString(),
+      walletAddress: user.walletAddress,
+      userName: user.userName,
+      createdAt: user.createdAt,
+      updatedAt: user.updatedAt,
+    }
+  }
+
   async createUser(walletAddress: string, userName: string) {
     // Validate input
     if (!walletAddress || walletAddress.trim().length === 0) {
