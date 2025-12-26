@@ -12,34 +12,34 @@ interface MoveHistoryItem {
 }
 
 interface ChessBoardProps {
-    room: Room;
+    room: Room | null;
     playerAddress: string;
     onGameOver?: (winner?: 'white' | 'black' | 'draw') => void;
 }
 
 export default function ChessBoard({ room, playerAddress, onGameOver }: ChessBoardProps) {
-    const [game, setGame] = useState(new Chess(room.gameState));
+    // Guard clause: if room is not available, show loading
+    if (!room) {
+        return <div className="flex justify-center items-center h-96 text-lg text-gray-600">Loading room...</div>;
+    }
+
+    const [game, setGame] = useState(new Chess(room.gameState || 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1'));
     const [playerColor, setPlayerColor] = useState<'white' | 'black' | null>(null);
     const [moveHistory, setMoveHistory] = useState<MoveHistoryItem[]>([]);
     const [lastMove, setLastMove] = useState<{ from: string; to: string; } | null>(null);
     const [capturedPieces, setCapturedPieces] = useState<{ white: string[]; black: string[]; }>({ white: [], black: [] });
     const [moveError, setMoveError] = useState<string>('');
     const moveHistoryRef = useRef<HTMLDivElement>(null);
-    const previousFenRef = useRef<string>(room.gameState);
+    const previousFenRef = useRef<string>(room.gameState || 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1');
     const isInitializedRef = useRef<boolean>(false);
     // Maintain a local game instance that tracks moves for history
     const historyGameRef = useRef<Chess>(new Chess());
 
     // Initialize player color and sync game state
     useEffect(() => {
-        const player = room.players.find(p => p.address === playerAddress);
+        const player = room.players?.find(p => p.address === playerAddress);
         if (player) {
             setPlayerColor(player.color);
-        }
-
-        // Request current game state when joining to ensure sync
-        if (room.id && room.players.length === 2) {
-            socketService.getGameState(room.id);
         }
     }, [room, playerAddress]);
 
@@ -89,18 +89,33 @@ export default function ChessBoard({ room, playerAddress, onGameOver }: ChessBoa
             setMoveError(''); // Clear any previous errors
 
             // Update the game state from FEN
+            if (!data.gameState) {
+                console.warn('move_made event received without gameState');
+                return;
+            }
+
             const newGame = new Chess(data.gameState);
             setGame(newGame);
             previousFenRef.current = data.gameState;
 
             console.log('Move made event received:', {
                 move: data.move,
-                newTurn: data.room.currentTurn,
+                newTurn: data.room?.currentTurn,
                 gameState: data.gameState.substring(0, 80)
             });
 
             // Apply the move to our history-tracking game instance
             // This allows us to get the full move object with SAN notation
+            if (!data.room) {
+                console.warn('move_made event received without room data');
+                return;
+            }
+
+            if (!data.move) {
+                console.warn('move_made event received without move data');
+                return;
+            }
+
             try {
                 const moveObj = historyGameRef.current.move({
                     from: data.move.from,
@@ -110,7 +125,7 @@ export default function ChessBoard({ room, playerAddress, onGameOver }: ChessBoa
 
                 if (moveObj) {
                     const moveColor: 'white' | 'black' = moveObj.color === 'w' ? 'white' : 'black';
-                    const player = data.room.players.find(p => p.color === moveColor);
+                    const player = data.room.players?.find(p => p.color === moveColor);
 
                     console.log('Move applied to history game:', {
                         san: moveObj.san,
@@ -259,6 +274,9 @@ export default function ChessBoard({ room, playerAddress, onGameOver }: ChessBoa
         }
 
         // Use room.currentTurn as the source of truth for turn validation
+        if (!room) {
+            return false;
+        }
         const roomTurn = room.currentTurn;
 
         // Validate turn - room state should match player color
@@ -294,6 +312,10 @@ export default function ChessBoard({ room, playerAddress, onGameOver }: ChessBoa
                 to: targetSquare,
             };
 
+            if (!room) {
+                setMoveError('Room not available');
+                return false;
+            }
             socketService.makeMove(room.id, gameMove, playerAddress);
             setMoveError(''); // Clear error on successful move
             return true;
@@ -305,8 +327,8 @@ export default function ChessBoard({ room, playerAddress, onGameOver }: ChessBoa
     }
 
     // Get player info
-    const whitePlayer = room.players.find(p => p.color === 'white');
-    const blackPlayer = room.players.find(p => p.color === 'black');
+    const whitePlayer = room.players?.find(p => p.color === 'white');
+    const blackPlayer = room.players?.find(p => p.color === 'black');
 
     if (!playerColor) {
         return <div className="flex justify-center items-center h-96 text-lg text-gray-600">Loading...</div>;
@@ -335,39 +357,39 @@ export default function ChessBoard({ room, playerAddress, onGameOver }: ChessBoa
     };
 
     return (
-        <div className="w-full max-w-[1600px] mx-auto p-5">
-            <div className="grid grid-cols-[280px_1fr_280px] gap-5 bg-gray-100 rounded-xl p-5 shadow-lg max-lg:grid-cols-[240px_1fr_240px] max-md:grid-cols-1 max-md:grid-rows-[auto_1fr_auto]">
+        <div className="w-full max-w-[100vw] mx-auto p-2 sm:p-3 md:p-4 lg:p-5 xl:p-6 overflow-x-hidden">
+            <div className="grid grid-cols-[minmax(200px,280px)_1fr_minmax(200px,280px)] gap-2 sm:gap-3 md:gap-4 lg:gap-5 xl:gap-6 bg-gray-100 rounded-xl p-2 sm:p-3 md:p-4 lg:p-5 xl:p-6 shadow-lg max-xl:grid-cols-[minmax(180px,260px)_1fr_minmax(180px,260px)] max-lg:grid-cols-[minmax(160px,220px)_1fr_minmax(160px,220px)] max-md:grid-cols-1 max-md:grid-rows-[auto_1fr_auto]">
                 {/* Left Sidebar - Player Info & Captured Pieces */}
-                <div className="flex flex-col gap-5 min-w-[280px] max-lg:min-w-[240px] max-md:order-2 max-md:grid max-md:grid-cols-2 max-md:gap-4 max-sm:grid-cols-1">
-                    <div className="bg-white rounded-lg p-4 shadow-md">
-                        <h3 className="m-0 mb-3 text-base font-semibold text-gray-800 border-b-2 border-indigo-500 pb-2">Players</h3>
-                        <div className="flex flex-col gap-3">
-                            <div className={`flex items-center gap-2.5 p-2.5 rounded-md transition-all ${
+                <div className="flex flex-col gap-2 sm:gap-3 md:gap-4 lg:gap-5 xl:gap-6 min-w-0 max-md:order-2 max-md:grid max-md:grid-cols-2 max-md:gap-3 max-sm:grid-cols-1">
+                    <div className="bg-white rounded-lg p-3 sm:p-4 md:p-5 shadow-md">
+                        <h3 className="m-0 mb-3 sm:mb-4 text-base sm:text-lg font-semibold text-gray-800 border-b-2 border-indigo-500 pb-2">Players</h3>
+                        <div className="flex flex-col gap-2.5 sm:gap-3 md:gap-3.5">
+                            <div className={`flex items-center gap-2 sm:gap-3 p-2 sm:p-2.5 md:p-3 rounded-md transition-all ${
                                 whitePlayer?.address === playerAddress 
                                     ? 'bg-gradient-to-r from-indigo-500 to-purple-600 text-white shadow-md' 
                                     : 'bg-gray-50'
                             }`}>
-                                <span className="text-2xl w-8 h-8 flex items-center justify-center rounded-full bg-white/20">⚪</span>
-                                <div>
-                                    <div className={`font-semibold text-sm ${whitePlayer?.address === playerAddress ? 'text-white' : 'text-gray-800'}`}>
+                                <span className="text-2xl sm:text-3xl w-8 h-8 sm:w-10 sm:h-10 flex items-center justify-center rounded-full bg-white/20 flex-shrink-0">⚪</span>
+                                <div className="min-w-0 flex-1">
+                                    <div className={`font-semibold text-sm sm:text-base truncate ${whitePlayer?.address === playerAddress ? 'text-white' : 'text-gray-800'}`}>
                                         {whitePlayer?.address === playerAddress ? 'You (White)' : 'White'}
                                     </div>
-                                    <div className={`text-xs font-mono ${whitePlayer?.address === playerAddress ? 'text-white' : 'text-gray-600'}`}>
+                                    <div className={`text-xs sm:text-sm font-mono truncate ${whitePlayer?.address === playerAddress ? 'text-white/90' : 'text-gray-600'}`}>
                                         {whitePlayer?.address.slice(0, 8)}...
                                     </div>
                                 </div>
                             </div>
-                            <div className={`flex items-center gap-2.5 p-2.5 rounded-md transition-all ${
+                            <div className={`flex items-center gap-2 sm:gap-3 p-2 sm:p-2.5 md:p-3 rounded-md transition-all ${
                                 blackPlayer?.address === playerAddress 
                                     ? 'bg-gradient-to-r from-indigo-500 to-purple-600 text-white shadow-md' 
                                     : 'bg-gray-50'
                             }`}>
-                                <span className="text-2xl w-8 h-8 flex items-center justify-center rounded-full bg-white/20">⚫</span>
-                                <div>
-                                    <div className={`font-semibold text-sm ${blackPlayer?.address === playerAddress ? 'text-white' : 'text-gray-800'}`}>
+                                <span className="text-2xl sm:text-3xl w-8 h-8 sm:w-10 sm:h-10 flex items-center justify-center rounded-full bg-white/20 flex-shrink-0">⚫</span>
+                                <div className="min-w-0 flex-1">
+                                    <div className={`font-semibold text-sm sm:text-base truncate ${blackPlayer?.address === playerAddress ? 'text-white' : 'text-gray-800'}`}>
                                         {blackPlayer?.address === playerAddress ? 'You (Black)' : 'Black'}
                                     </div>
-                                    <div className={`text-xs font-mono ${blackPlayer?.address === playerAddress ? 'text-white' : 'text-gray-600'}`}>
+                                    <div className={`text-xs sm:text-sm font-mono truncate ${blackPlayer?.address === playerAddress ? 'text-white/90' : 'text-gray-600'}`}>
                                         {blackPlayer?.address.slice(0, 8)}...
                                     </div>
                                 </div>
@@ -375,53 +397,57 @@ export default function ChessBoard({ room, playerAddress, onGameOver }: ChessBoa
                         </div>
                     </div>
 
-                    <div className="bg-white rounded-lg p-4 shadow-md">
-                        <h3 className="m-0 mb-3 text-base font-semibold text-gray-800 border-b-2 border-indigo-500 pb-2">Captured Pieces</h3>
-                        <div className="flex flex-col gap-3">
-                            <div className="flex flex-col gap-2">
-                                <strong className="text-sm text-gray-600">White:</strong>
-                                <div className="flex flex-wrap gap-1 min-h-6">
+                    <div className="bg-white rounded-lg p-3 sm:p-4 md:p-5 shadow-md">
+                        <h3 className="m-0 mb-3 sm:mb-4 text-base sm:text-lg font-semibold text-gray-800 border-b-2 border-indigo-500 pb-2">Captured Pieces</h3>
+                        <div className="flex flex-col gap-2 sm:gap-3">
+                            <div className="flex flex-col gap-2 sm:gap-2.5">
+                                <strong className="text-sm sm:text-base text-gray-700 flex items-center gap-2">
+                                    <span className="text-lg">⚪</span> White:
+                                </strong>
+                                <div className="flex flex-wrap gap-1.5 sm:gap-2 min-h-6 sm:min-h-8 p-2 bg-gray-50 rounded-md border border-gray-200">
                                     {capturedPieces.white.map((piece, idx) => (
-                                        <span key={idx} className="text-xl p-1 bg-gray-100 rounded inline-block">
+                                        <span key={idx} className="text-xl sm:text-2xl p-1.5 sm:p-2 bg-black border border-gray-300 rounded shadow-sm hover:shadow-md transition-shadow">
                                             {getPieceSymbol(piece)}
                                         </span>
                                     ))}
-                                    {capturedPieces.white.length === 0 && <span className="text-gray-400 text-xs italic">None</span>}
+                                    {capturedPieces.white.length === 0 && <span className="text-gray-400 text-xs sm:text-sm italic">None captured</span>}
                                 </div>
                             </div>
-                            <div className="flex flex-col gap-2">
-                                <strong className="text-sm text-gray-600">Black:</strong>
-                                <div className="flex flex-wrap gap-1 min-h-6">
+                            <div className="flex flex-col gap-2 sm:gap-2.5">
+                                <strong className="text-sm sm:text-base text-gray-700 flex items-center gap-2">
+                                    <span className="text-lg">⚫</span> Black:
+                                </strong>
+                                <div className="flex flex-wrap gap-1.5 sm:gap-2 min-h-6 sm:min-h-8 p-2 bg-gray-50 rounded-md border border-gray-700">
                                     {capturedPieces.black.map((piece, idx) => (
-                                        <span key={idx} className="text-xl p-1 bg-gray-100 rounded inline-block">
+                                        <span key={idx} className="text-xl sm:text-2xl p-1.5 sm:p-2 bg-gray-700 border border-gray-600 rounded shadow-sm hover:shadow-md transition-shadow">
                                             {getPieceSymbol(piece)}
                                         </span>
                                     ))}
-                                    {capturedPieces.black.length === 0 && <span className="text-gray-400 text-xs italic">None</span>}
+                                    {capturedPieces.black.length === 0 && <span className="text-gray-500 text-xs sm:text-sm italic">None captured</span>}
                                 </div>
                             </div>
                         </div>
                     </div>
 
-                    <div className="bg-white rounded-lg p-4 shadow-md">
-                        <h3 className="m-0 mb-3 text-base font-semibold text-gray-800 border-b-2 border-indigo-500 pb-2">Game Status</h3>
-                        <div className="flex flex-col gap-2.5">
-                            <div className={`p-2.5 rounded-md text-center font-semibold text-sm ${
+                    <div className="bg-white rounded-lg p-3 sm:p-4 md:p-5 shadow-md">
+                        <h3 className="m-0 mb-3 sm:mb-4 text-base sm:text-lg font-semibold text-gray-800 border-b-2 border-indigo-500 pb-2">Game Status</h3>
+                        <div className="flex flex-col gap-2 sm:gap-2.5">
+                            <div className={`p-2.5 sm:p-3 rounded-md text-center font-semibold text-sm sm:text-base ${
                                 room.currentTurn === playerColor 
                                     ? 'bg-gradient-to-r from-indigo-500 to-purple-600 text-white animate-pulse' 
                                     : 'bg-gray-100 text-gray-600'
                             }`}>
                                 {room.currentTurn === playerColor ? '✅ Your Turn' : '⏳ Waiting...'}
                             </div>
-                            <div className="text-xs text-gray-600 p-2 bg-gray-50 rounded">
+                            <div className="text-xs sm:text-sm text-gray-600 p-2 sm:p-2.5 bg-gray-50 rounded">
                                 Current: {room.currentTurn === 'white' ? '⚪ White' : '⚫ Black'}
                             </div>
                             {playerColor && (
-                                <div className="text-[11px] text-gray-400 mt-1">
+                                <div className="text-xs text-gray-400 mt-1">
                                     You are: {playerColor === 'white' ? '⚪ White' : '⚫ Black'}
                                 </div>
                             )}
-                            <div className="text-xs text-gray-600">
+                            <div className="text-xs sm:text-sm text-gray-600">
                                 Status: <span className={`font-semibold ${
                                     room.status === 'waiting' ? 'text-orange-500' :
                                     room.status === 'active' ? 'text-green-500' :
@@ -444,48 +470,50 @@ export default function ChessBoard({ room, playerAddress, onGameOver }: ChessBoa
                 </div>
 
                 {/* Center - Chess Board */}
-                <div className="flex flex-col items-center gap-4 max-md:order-1">
+                <div className="flex flex-col items-center gap-3 sm:gap-4 max-md:order-1 min-w-0 w-full">
                     {moveError && (
-                        <div className="bg-red-500 text-white px-5 py-3 rounded-md font-semibold text-sm shadow-lg animate-[slideDown_0.3s_ease-out]">
+                        <div className="bg-red-500 text-white px-4 sm:px-6 py-2 sm:py-3 rounded-md font-semibold text-sm sm:text-base shadow-lg animate-[slideDown_0.3s_ease-out] w-full max-w-md">
                             ⚠️ {moveError}
                         </div>
                     )}
-                    <div className="w-full max-w-[600px] aspect-square flex justify-center items-center">
+                    <div className="w-full max-w-[min(700px,calc(100vw-600px))] aspect-square flex justify-center items-center max-xl:max-w-[min(600px,calc(100vw-540px))] max-lg:max-w-[min(500px,calc(100vw-460px))] max-md:max-w-[min(90vw,500px)] max-sm:max-w-[95vw]">
                         <Chessboard
                             position={game.fen()}
                             onPieceDrop={onDrop}
                             boardOrientation={boardOrientation}
                             customSquareStyles={customSquareStyles}
                             customBoardStyle={{
-                                borderRadius: '4px',
-                                boxShadow: '0 4px 20px rgba(0, 0, 0, 0.3)',
+                                borderRadius: '8px',
+                                boxShadow: '0 8px 32px rgba(0, 0, 0, 0.4)',
+                                width: '100%',
+                                height: '100%',
                             }}
                             customDarkSquareStyle={{ backgroundColor: '#b58863' }}
                             customLightSquareStyle={{ backgroundColor: '#f0d9b5' }}
                         />
                     </div>
-                    <div className="flex gap-5 text-xs text-gray-600 bg-white px-5 py-3 rounded-md shadow-md max-sm:flex-col max-sm:gap-2 max-sm:text-center">
+                    <div className="flex gap-3 sm:gap-4 md:gap-6 text-xs sm:text-sm text-gray-600 bg-white px-3 sm:px-4 md:px-6 py-2 sm:py-3 md:py-4 rounded-md shadow-md max-sm:flex-col max-sm:gap-2 max-sm:text-center w-full">
                         <div>
-                            Room: <code className="font-mono text-indigo-500 font-semibold">{room.id.slice(0, 8)}...</code>
+                            <span className="text-gray-500">Room:</span> <code className="font-mono text-indigo-500 font-semibold">{room.id ? room.id.slice(0, 8) : 'N/A'}...</code>
                         </div>
                         <div>
-                            Entry Fee: <span className="font-mono text-indigo-500 font-semibold">{room.entryFee.toFixed(2)} {room.currency}</span>
+                            <span className="text-gray-500">Entry Fee:</span> <span className="font-mono text-indigo-500 font-semibold">{room.entryFee ? room.entryFee.toFixed(2) : '0.00'} {room.currency || 'USDC'}</span>
                         </div>
                     </div>
                 </div>
 
                 {/* Right Sidebar - Move History */}
-                <div className="flex flex-col gap-5 min-w-[280px] max-lg:min-w-[240px] max-md:order-3">
-                    <div className="bg-white rounded-lg p-4 shadow-md">
-                        <div className="flex justify-between items-center mb-3 pb-2 border-b-2 border-indigo-500">
-                            <h3 className="m-0 text-base font-semibold text-gray-800">Move History</h3>
+                <div className="flex flex-col gap-2 sm:gap-3 md:gap-4 lg:gap-5 xl:gap-6 min-w-0 max-md:order-3">
+                    <div className="bg-white rounded-lg p-3 sm:p-4 md:p-5 shadow-md">
+                        <div className="flex justify-between items-center mb-3 sm:mb-4 pb-2 border-b-2 border-indigo-500">
+                            <h3 className="m-0 text-base sm:text-lg font-semibold text-gray-800">Move History</h3>
                             {moveHistory.length > 0 && (
                                 <span className="text-xs text-indigo-500 bg-indigo-50 px-2 py-1 rounded-xl font-medium">
                                     {moveHistory.length} {moveHistory.length === 1 ? 'move' : 'moves'}
                                 </span>
                             )}
                         </div>
-                        <div className="max-h-[500px] overflow-y-auto flex flex-col gap-1.5 pr-2 max-md:max-h-[300px] [&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-track]:bg-gray-100 [&::-webkit-scrollbar-thumb]:bg-gray-400 [&::-webkit-scrollbar-thumb]:rounded [&::-webkit-scrollbar-thumb:hover]:bg-gray-500" ref={moveHistoryRef}>
+                        <div className="max-h-[min(600px,calc(100vh-400px))] overflow-y-auto flex flex-col gap-1.5 sm:gap-2 pr-1 sm:pr-2 max-md:max-h-[min(300px,40vh)] [&::-webkit-scrollbar]:w-1.5 sm:[&::-webkit-scrollbar]:w-2 [&::-webkit-scrollbar-track]:bg-gray-100 [&::-webkit-scrollbar-thumb]:bg-gray-400 [&::-webkit-scrollbar-thumb]:rounded [&::-webkit-scrollbar-thumb:hover]:bg-gray-500" ref={moveHistoryRef}>
                             {moveHistory.length === 0 ? (
                                 <div className="text-center text-gray-400 py-10 px-5 flex flex-col items-center gap-3">
                                     <div className="text-5xl opacity-50">♟️</div>
@@ -511,9 +539,9 @@ export default function ChessBoard({ room, playerAddress, onGameOver }: ChessBoa
                                         const isLastGroup = groupIdx === groupedMoves.length - 1;
 
                                         return (
-                                            <div key={groupIdx} className="flex gap-2 items-start p-1.5 rounded-md bg-gray-50 hover:bg-gray-100 transition-all">
-                                                <div className="font-bold text-indigo-500 text-xs min-w-[28px] pt-1.5">{group.moveNumber}.</div>
-                                                <div className="flex-1 flex flex-col gap-1">
+                                            <div key={groupIdx} className="flex gap-1.5 sm:gap-2 items-start p-1.5 sm:p-2 rounded-md bg-gray-50 hover:bg-gray-100 transition-all">
+                                                <div className="font-bold text-indigo-500 text-xs min-w-[24px] sm:min-w-[28px] pt-1.5 flex-shrink-0">{group.moveNumber}.</div>
+                                                <div className="flex-1 flex flex-col gap-1 min-w-0">
                                                     {/* White Move */}
                                                     {group.white && (() => {
                                                         const isPlayerMove = group.white.playerAddress === playerAddress;
@@ -537,7 +565,7 @@ export default function ChessBoard({ room, playerAddress, onGameOver }: ChessBoa
 
                                                         return (
                                                             <div
-                                                                className={`flex justify-between items-center px-3 py-2 rounded bg-white transition-all text-xs border-l-[3px] ${
+                                                                className={`flex justify-between items-center px-2 sm:px-3 py-1.5 sm:py-2 rounded bg-white transition-all text-xs border-l-[3px] ${
                                                                     isLastMove 
                                                                         ? 'bg-gradient-to-r from-yellow-100 to-orange-100 border-l-yellow-400 shadow-md animate-[highlightMove_0.5s_ease-out]' 
                                                                         : isPlayerMove
@@ -545,21 +573,21 @@ export default function ChessBoard({ room, playerAddress, onGameOver }: ChessBoa
                                                                         : 'border-l-gray-300'
                                                                 } hover:bg-gray-50 hover:translate-x-0.5`}
                                                             >
-                                                                <div className="flex items-center gap-1.5 flex-1">
-                                                                    <span className="font-mono font-semibold text-gray-800 tracking-wide">{group.white.move.san}</span>
+                                                                <div className="flex items-center gap-1 sm:gap-1.5 flex-1 min-w-0">
+                                                                    <span className="font-mono font-semibold text-gray-800 tracking-wide truncate">{group.white.move.san}</span>
                                                                     {group.white.move.captured && (
-                                                                        <span className="font-bold text-base text-red-500 leading-none" title="Capture">×</span>
+                                                                        <span className="font-bold text-sm sm:text-base text-red-500 leading-none flex-shrink-0" title="Capture">×</span>
                                                                     )}
                                                                     {isCheckmate && (
-                                                                        <span className="font-bold text-sm text-green-500 leading-none" title="Checkmate">#</span>
+                                                                        <span className="font-bold text-xs sm:text-sm text-green-500 leading-none flex-shrink-0" title="Checkmate">#</span>
                                                                     )}
                                                                     {isCheck && !isCheckmate && (
-                                                                        <span className="font-bold text-sm text-orange-500 leading-none" title="Check">+</span>
+                                                                        <span className="font-bold text-[10px] sm:text-xs text-orange-500 leading-none flex-shrink-0" title="Check">+</span>
                                                                     )}
                                                                 </div>
-                                                                <div className="flex items-center gap-2">
-                                                                    <span className="text-[11px] text-gray-400 whitespace-nowrap">{group.white.timestamp.toLocaleTimeString()}</span>
-                                                                    {isPlayerMove && <span className="text-[10px] text-indigo-500 bg-indigo-50 px-1.5 py-0.5 rounded-full font-semibold uppercase tracking-wide">You</span>}
+                                                                <div className="flex items-center gap-1.5 sm:gap-2 flex-shrink-0">
+                                                                    <span className="text-[9px] sm:text-[11px] text-gray-400 whitespace-nowrap hidden sm:inline">{group.white.timestamp.toLocaleTimeString()}</span>
+                                                                    {isPlayerMove && <span className="text-[8px] sm:text-[10px] text-indigo-500 bg-indigo-50 px-1 sm:px-1.5 py-0.5 rounded-full font-semibold uppercase tracking-wide">You</span>}
                                                                 </div>
                                                             </div>
                                                         );
@@ -588,7 +616,7 @@ export default function ChessBoard({ room, playerAddress, onGameOver }: ChessBoa
 
                                                         return (
                                                             <div
-                                                                className={`flex justify-between items-center px-3 py-2 rounded transition-all text-xs border-l-[3px] ${
+                                                                className={`flex justify-between items-center px-2 sm:px-3 py-1.5 sm:py-2 rounded transition-all text-xs border-l-[3px] ${
                                                                     isLastMove 
                                                                         ? 'bg-gradient-to-r from-yellow-100 to-orange-100 border-l-yellow-400 shadow-md animate-[highlightMove_0.5s_ease-out]' 
                                                                         : isPlayerMove
@@ -596,21 +624,21 @@ export default function ChessBoard({ room, playerAddress, onGameOver }: ChessBoa
                                                                         : 'bg-gray-50 border-l-gray-700'
                                                                 } hover:bg-gray-100 hover:translate-x-0.5`}
                                                             >
-                                                                <div className="flex items-center gap-1.5 flex-1">
-                                                                    <span className="font-mono font-bold text-gray-900 tracking-wide">{group.black.move.san}</span>
+                                                                <div className="flex items-center gap-1 sm:gap-1.5 flex-1 min-w-0">
+                                                                    <span className="font-mono font-bold text-gray-900 tracking-wide truncate">{group.black.move.san}</span>
                                                                     {group.black.move.captured && (
-                                                                        <span className="font-bold text-base text-red-500 leading-none" title="Capture">×</span>
+                                                                        <span className="font-bold text-sm sm:text-base text-red-500 leading-none flex-shrink-0" title="Capture">×</span>
                                                                     )}
                                                                     {isCheckmate && (
-                                                                        <span className="font-bold text-sm text-green-500 leading-none" title="Checkmate">#</span>
+                                                                        <span className="font-bold text-xs sm:text-sm text-green-500 leading-none flex-shrink-0" title="Checkmate">#</span>
                                                                     )}
                                                                     {isCheck && !isCheckmate && (
-                                                                        <span className="font-bold text-sm text-orange-500 leading-none" title="Check">+</span>
+                                                                        <span className="font-bold text-[10px] sm:text-xs text-orange-500 leading-none flex-shrink-0" title="Check">+</span>
                                                                     )}
                                                                 </div>
-                                                                <div className="flex items-center gap-2">
-                                                                    <span className="text-[11px] text-gray-400 whitespace-nowrap">{group.black.timestamp.toLocaleTimeString()}</span>
-                                                                    {isPlayerMove && <span className="text-[10px] text-indigo-500 bg-indigo-50 px-1.5 py-0.5 rounded-full font-semibold uppercase tracking-wide">You</span>}
+                                                                <div className="flex items-center gap-1.5 sm:gap-2 flex-shrink-0">
+                                                                    <span className="text-[9px] sm:text-[11px] text-gray-400 whitespace-nowrap hidden sm:inline">{group.black.timestamp.toLocaleTimeString()}</span>
+                                                                    {isPlayerMove && <span className="text-[8px] sm:text-[10px] text-indigo-500 bg-indigo-50 px-1 sm:px-1.5 py-0.5 rounded-full font-semibold uppercase tracking-wide">You</span>}
                                                                 </div>
                                                             </div>
                                                         );

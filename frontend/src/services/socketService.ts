@@ -29,59 +29,42 @@ class SocketService {
 		return this.socket;
 	}
 
-	// Room management
-	createRoom(
-		entryFee: number,
-		playerAddress: string,
-		currency?: string
-	): void {
-		this.socket?.emit("create_room", { entryFee, currency, playerAddress });
-	}
-
-	joinRoom(roomId: string, playerAddress: string): void {
-		this.socket?.emit("join_room", { roomId, playerAddress });
-	}
-
-	getRooms(): void {
-		this.socket?.emit("get_rooms");
-	}
-
-	getRoom(roomId: string): void {
-		this.socket?.emit("get_room", roomId);
+	// Match management (aligned with backend)
+	joinMatch(matchId: string, playerAddress: string, stakeAmount: number): void {
+		this.socket?.emit("join_match", { matchId, playerAddress, stakeAmount });
 	}
 
 	// Game management
-	makeMove(roomId: string, move: GameMove, playerAddress: string): void {
-		this.socket?.emit("make_move", { roomId, move, playerAddress });
+	makeMove(matchId: string, move: GameMove, playerAddress: string): void {
+		this.socket?.emit("make_move", { matchId, move, playerAddress });
 	}
 
-	getGameState(roomId: string): void {
-		this.socket?.emit("get_game_state", roomId);
+	// Spectator mode
+	joinSpectator(matchId: string): void {
+		this.socket?.emit("join_spectator", { matchId });
 	}
 
-	// Event listeners
-	onRoomCreated(callback: (room: Room) => void): void {
-		this.socket?.on("room_created", callback);
+	// Event listeners (aligned with backend)
+	onMatchJoined(callback: (room: Room) => void): void {
+		this.socket?.on("match_joined", callback);
 	}
 
-	onRoomJoined(callback: (room: Room) => void): void {
-		this.socket?.on("room_joined", callback);
+	onMatchUpdated(callback: (room: Room) => void): void {
+		this.socket?.on("match_updated", callback);
 	}
 
 	onRoomUpdated(callback: (room: Room) => void): void {
 		this.socket?.on("room_updated", callback);
 	}
 
-	onRoomsList(callback: (rooms: Room[]) => void): void {
-		this.socket?.on("rooms_list", callback);
-	}
-
-	onRoomsUpdated(callback: (rooms: Room[]) => void): void {
-		this.socket?.on("rooms_updated", callback);
-	}
-
-	onRoomDetails(callback: (room: Room) => void): void {
-		this.socket?.on("room_details", callback);
+	onSpectatorJoined(callback: (data: {
+		matchId: string;
+		gameState: string;
+		status: string;
+		currentTurn: "white" | "black";
+		players: Array<{ address: string; color: "white" | "black" }>;
+	}) => void): void {
+		this.socket?.on("spectator_joined", callback);
 	}
 
 	onMoveMade(
@@ -93,7 +76,28 @@ class SocketService {
 			winner?: "white" | "black" | "draw";
 		}) => void
 	): void {
-		this.socket?.on("move_made", callback);
+		this.socket?.on("move_made", (data: any) => {
+			// Normalize the data structure - backend sends gameState and room
+			// But support legacy 'fen' field for backward compatibility
+			const normalizedData = {
+				move: data.move,
+				gameState: data.gameState || data.fen || '',
+				room: data.room || {
+					// Fallback: construct minimal room from available data (shouldn't happen with new backend)
+					id: data.matchId || '',
+					gameState: data.gameState || data.fen || '',
+					currentTurn: data.currentTurn || 'white',
+					status: 'active',
+					players: [],
+					stakeAmount: 0,
+					winner: data.winner,
+					createdAt: new Date()
+				},
+				isGameOver: data.isGameOver,
+				winner: data.winner
+			};
+			callback(normalizedData);
+		});
 	}
 
 	onGameState(
@@ -106,8 +110,16 @@ class SocketService {
 		this.socket?.on("error", callback);
 	}
 
-	onJoinRoomError(callback: (error: { message: string }) => void): void {
-		this.socket?.on("join_room_error", callback);
+	onJoinError(callback: (error: { message: string }) => void): void {
+		this.socket?.on("join_error", callback);
+	}
+
+	onMatchFinished(callback: (data: {
+		matchId: string;
+		winner: "white" | "black" | "draw";
+		finalFen: string;
+	}) => void): void {
+		this.socket?.on("match_finished", callback);
 	}
 
 	onMoveError(callback: (error: { message: string }) => void): void {

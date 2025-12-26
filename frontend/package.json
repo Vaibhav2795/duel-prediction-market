@@ -11,6 +11,7 @@
 		"@aptos-labs/ts-sdk": "^5.2.0",
 		"@privy-io/react-auth": "^3.10.0",
 		"chess.js": "^1.0.0-beta.6",
+		"qr": "^0.4.2",
 		"react": "^18.2.0",
 		"react-chessboard": "^4.5.0",
 		"react-dom": "^18.2.0",

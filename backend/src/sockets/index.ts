@@ -58,6 +58,25 @@ export function initSockets(server: HttpServer) {
 					);
 
 					if (!result.success || !result.room) {
+						// If player is already joined, send them the current room state instead of error
+						if (result.error === "Player already joined") {
+							const existingRoom = roomService.getRoom(matchId);
+							if (existingRoom) {
+								// Update socket ID in case it changed (reconnection)
+								roomService.updatePlayerSocketId(
+									matchId,
+									playerAddress,
+									socket.id
+								);
+								socket.join(matchId);
+								socket.emit("match_joined", existingRoom);
+								io.to(matchId).emit(
+									"match_updated",
+									existingRoom
+								);
+								return;
+							}
+						}
 						socket.emit("join_error", { message: result.error });
 						return;
 					}
@@ -102,15 +121,20 @@ export function initSockets(server: HttpServer) {
 					return;
 				}
 
-				// Get updated room to include currentTurn
+				// Get updated room to include all room data
 				const updatedRoom = roomService.getRoom(data.matchId);
+				if (!updatedRoom) {
+					socket.emit("move_error", { message: "Room not found" });
+					return;
+				}
 
+				// Emit move_made with full room object and gameState
 				io.to(data.matchId).emit("move_made", {
 					move: data.move,
-					fen: result.fen,
+					gameState: result.fen, // Use gameState instead of fen for consistency
+					room: updatedRoom, // Send full room object
 					isGameOver: result.isGameOver,
-					winner: result.winner,
-					currentTurn: updatedRoom?.currentTurn
+					winner: result.winner
 				});
 			}
 		);

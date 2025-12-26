@@ -5,12 +5,19 @@ import { Layout } from './components/Layout';
 import { BrowsePage } from './pages/Browse';
 import { MarketDetailPage } from './pages/MarketDetail';
 import { PortfolioPage } from './pages/Portfolio';
+import { MatchHistoryPage } from './pages/MatchHistory';
+import { MatchDetailPage } from './pages/MatchDetail';
 import ChessBoard from './components/ChessBoard';
 import RoomList from './components/RoomList';
 import CreateRoom from './components/CreateRoom';
+import UserRegistration from './components/UserRegistration';
+import { SpectatorView } from './components/SpectatorView';
+import { getMatchById } from './services/matchService';
 import { socketService } from './services/socketService';
 import { useMovementWallet } from './hooks/useMovementWallet';
 import * as bettingService from './services/bettingService';
+import type { Match } from './services/matchService';
+import type { User } from './services/userService';
 import type { Room, Market, Bet, Position, UserPortfolio, MarketStats, Outcome } from './types/game';
 
 function AppContent() {
@@ -21,13 +28,17 @@ function AppContent() {
     
     // Player state
     const [playerAddress, setPlayerAddress] = useState<string>('');
+    const [playerName, setPlayerName] = useState<string>('');
     const [walletBalance] = useState<number>(1000); // Mock balance
+    const [registeredUser, setRegisteredUser] = useState<User | null>(null);
+    const [showUserRegistration, setShowUserRegistration] = useState(false);
     
     // Chess game state
     const [currentRoom, setCurrentRoom] = useState<Room | null>(null);
     const [error, setError] = useState<string>('');
     const [showCreateRoom, setShowCreateRoom] = useState(false);
-    
+    const [joiningMatchId, setJoiningMatchId] = useState<string | null>(null);
+
     // Market state
     const [markets, setMarkets] = useState<Market[]>([]);
     const [currentMarket, setCurrentMarket] = useState<Market | null>(null);
@@ -38,25 +49,56 @@ function AppContent() {
     const [isLoading, setIsLoading] = useState(true);
     const [searchValue, setSearchValue] = useState('');
 
-    // Get wallet address from Privy
+    // Get wallet address from Privy and check user registration
     useEffect(() => {
         if (ready && authenticated && user) {
+            let address = '';
+
             if (isMovementWallet && movementWallet) {
-                const address = getMovementAddress();
-                if (address) {
-                    setPlayerAddress(address);
-                    return;
+                const movementAddress = getMovementAddress();
+                if (movementAddress) {
+                    address = movementAddress;
                 }
             }
             
-            const wallet = user.wallet;
-            if (wallet?.address) {
-                setPlayerAddress(wallet.address);
-            } else {
-                setPlayerAddress(user.id || '');
+            if (!address) {
+                const wallet = user.wallet;
+                if (wallet?.address) {
+                    address = wallet.address;
+                } else {
+                    address = user.id || '';
+                }
+            }
+
+            setPlayerAddress(address);
+
+            // Check if user is registered
+            if (address) {
+                const checkUserRegistration = async () => {
+                    try {
+                        const { getUserByWallet } = await import('./services/userService');
+                        const userData = await getUserByWallet(address);
+                        if (userData) {
+                            setRegisteredUser(userData);
+                            setPlayerName(userData.userName);
+                            setShowUserRegistration(false);
+                        } else {
+                            setRegisteredUser(null);
+                            setShowUserRegistration(true);
+                        }
+                    } catch (err) {
+                        console.error('Failed to check user registration:', err);
+                        setRegisteredUser(null);
+                        setShowUserRegistration(true);
+                    }
+                };
+
+                checkUserRegistration();
             }
         } else if (ready && !authenticated) {
             setPlayerAddress('');
+            setRegisteredUser(null);
+            setShowUserRegistration(false);
         }
     }, [ready, authenticated, user, isMovementWallet, movementWallet, getMovementAddress]);
 
@@ -101,14 +143,21 @@ function AppContent() {
             fetchPortfolio();
         }
 
-        const handleRoomJoined = (room: Room) => {
+        const handleMatchJoined = (room: Room) => {
+            console.log('Match joined, setting current room:', room.id);
             setCurrentRoom(room);
+            setJoiningMatchId(null);
+            // Navigate to game page
             navigate(`/game/${room.id}`);
             setError('');
         };
 
-        const handleRoomUpdated = (room: Room) => {
+        const handleMatchUpdated = (room: Room) => {
             setCurrentRoom(room);
+            // If we were joining this room, clear the joining state
+            if (joiningMatchId === room.id) {
+                setJoiningMatchId(null);
+            }
         };
 
         const handleMoveMade = (data: {
@@ -119,15 +168,55 @@ function AppContent() {
             winner?: 'white' | 'black' | 'draw';
         }) => {
             setCurrentRoom(prevRoom => {
+                if (!data.room) {
+                    console.warn('move_made event received without room data');
+                    return prevRoom;
+                }
                 if (prevRoom && data.room.id === prevRoom.id) {
-                    return data.room;
+                    return {
+                        ...data.room,
+                        gameState: data.gameState,
+                        currentTurn: data.room.currentTurn || prevRoom.currentTurn,
+                        status: data.isGameOver ? 'finished' : data.room.status,
+                        winner: data.winner,
+                    };
+                }
+                return prevRoom;
+            });
+        };
+
+        const handleMatchFinished = (data: {
+            matchId: string;
+            winner: 'white' | 'black' | 'draw';
+            finalFen: string;
+        }) => {
+            setCurrentRoom(prevRoom => {
+                if (prevRoom && prevRoom.id === data.matchId) {
+                    return {
+                        ...prevRoom,
+                        status: 'finished',
+                        winner: data.winner,
+                        gameState: data.finalFen,
+                    };
                 }
                 return prevRoom;
             });
         };
 
         const handleError = (err: { message: string }) => {
+            console.error('Socket error:', err);
+            // If "Player already joined", it means we're already in the room
+            // This is not really an error - we should just wait for the room state
+            if (err.message.includes('already joined') || err.message.includes('Player already joined')) {
+                console.log('Player already in room, waiting for room state...');
+                setJoiningMatchId(null);
+                // If we're on the game page, try to get the room state
+                // The backend should emit match_updated or we can wait for it
+                // Don't set this as an error, just wait for match_joined or match_updated
+                return;
+            }
             setError(err.message);
+            setJoiningMatchId(null);
         };
 
         const handlePlayerLeft = () => {
@@ -138,22 +227,24 @@ function AppContent() {
             }, 3000);
         };
 
-        socketService.onRoomJoined(handleRoomJoined);
-        socketService.onRoomUpdated(handleRoomUpdated);
+        socketService.onMatchJoined(handleMatchJoined);
+        socketService.onMatchUpdated(handleMatchUpdated);
         socketService.onMoveMade(handleMoveMade);
+        socketService.onMatchFinished(handleMatchFinished);
         socketService.onError(handleError);
-        socketService.onJoinRoomError(handleError);
+        socketService.onJoinError(handleError);
         socketService.onPlayerLeft(handlePlayerLeft);
 
         return () => {
-            socketService.off('room_joined', handleRoomJoined);
-            socketService.off('room_updated', handleRoomUpdated);
+            socketService.off('match_joined', handleMatchJoined);
+            socketService.off('match_updated', handleMatchUpdated);
             socketService.off('move_made', handleMoveMade);
+            socketService.off('match_finished', handleMatchFinished);
             socketService.off('error', handleError);
-            socketService.off('join_room_error', handleError);
+            socketService.off('join_error', handleError);
             socketService.off('player_left', handlePlayerLeft);
         };
-    }, [ready, authenticated, playerAddress, navigate, fetchMarkets, fetchPortfolio]);
+    }, [ready, authenticated, playerAddress, navigate, fetchMarkets, fetchPortfolio, joiningMatchId]);
 
     // Navigation handlers
     const handleNavigate = (path: string) => {
@@ -190,15 +281,51 @@ function AppContent() {
     };
 
     // Chess game handlers
-    const handleCreateRoom = (room: Room) => {
-        setCurrentRoom(room);
-        navigate(`/game/${room.id}`);
-        setShowCreateRoom(false);
-        setError('');
+    const handleCreateMatch = async (match: Match) => {
+        try {
+            setError('');
+            // Prevent duplicate joins
+            if (joiningMatchId === match.id) {
+                console.log('Already joining this match, skipping...');
+                return;
+            }
+            // After creating match, join it via socket
+            // Navigation will happen in handleMatchJoined callback
+            console.log('Creating match, joining via socket:', match.id);
+            setJoiningMatchId(match.id);
+            socketService.joinMatch(match.id, playerAddress, match.stakeAmount);
+            setShowCreateRoom(false);
+        } catch (err: any) {
+            console.error('Error joining match:', err);
+            setError(err.message || 'Failed to join match');
+            setJoiningMatchId(null);
+        }
     };
 
-    const handleJoinRoom = (roomId: string) => {
-        socketService.joinRoom(roomId, playerAddress);
+    const handleJoinMatch = (matchId: string, stakeAmount: number) => {
+        try {
+            setError('');
+            // Prevent duplicate joins
+            if (joiningMatchId === matchId) {
+                console.log('Already joining this match, skipping...');
+                return;
+            }
+            console.log('Joining match via socket:', matchId);
+            setJoiningMatchId(matchId);
+            // Join match via socket - navigation will happen in handleMatchJoined callback
+            socketService.joinMatch(matchId, playerAddress, stakeAmount);
+        } catch (err: any) {
+            console.error('Error joining match:', err);
+            setError(err.message || 'Failed to join match');
+            setJoiningMatchId(null);
+        }
+    };
+
+    // User registration handlers
+    const handleUserCreated = (newUser: User) => {
+        setRegisteredUser(newUser);
+        setPlayerName(newUser.userName);
+        setShowUserRegistration(false);
     };
 
     const handleBackToLobby = () => {
@@ -291,40 +418,50 @@ function AppContent() {
                     path="/create" 
                     element={
                         <div className="max-w-4xl mx-auto px-4 py-8">
-                            <h1 className="text-2xl font-bold text-text-primary mb-6">Create a Chess Game</h1>
-                            
+                            <h1 className="text-2xl font-bold text-text-primary mb-6">Create a Chess Match</h1>
+
                             {error && (
-                                <div className="bg-no/20 border border-no text-no p-4 rounded-lg mb-5 text-center">
+                                <div className="bg-red-500/20 border border-red-500/30 text-red-400 p-4 rounded-lg mb-5 text-center">
                                     {error}
                                 </div>
                             )}
 
                             {authenticated && playerAddress ? (
-                                <div className="space-y-6">
-                                    <div className="flex gap-4 mb-6">
-                                        <button
-                                            onClick={() => setShowCreateRoom(!showCreateRoom)}
-                                            className={`btn ${showCreateRoom ? 'btn-secondary' : 'btn-primary'}`}
-                                        >
-                                            {showCreateRoom ? 'Show Available Games' : 'Create New Game'}
-                                        </button>
-                                    </div>
+                                (showUserRegistration || !registeredUser) ? (
+                                    <UserRegistration
+                                        walletAddress={playerAddress}
+                                        onUserCreated={handleUserCreated}
+                                        onError={setError}
+                                    />
+                                ) : (
+                                        <div className="space-y-6">
+                                            <div className="flex gap-4 mb-6">
+                                                <button
+                                                    onClick={() => setShowCreateRoom(!showCreateRoom)}
+                                                    className={`btn ${showCreateRoom ? 'btn-secondary' : 'btn-primary'}`}
+                                                >
+                                                    {showCreateRoom ? 'Show Available Matches' : 'Create New Match'}
+                                                </button>
+                                            </div>
 
-                                    {showCreateRoom ? (
-                                        <CreateRoom
-                                            playerAddress={playerAddress}
-                                            onRoomCreated={handleCreateRoom}
-                                        />
-                                    ) : (
-                                        <RoomList
-                                            playerAddress={playerAddress}
-                                            onJoinRoom={handleJoinRoom}
-                                        />
-                                    )}
-                                </div>
+                                            {showCreateRoom ? (
+                                                <CreateRoom
+                                                    playerAddress={playerAddress}
+                                                    playerName={playerName || 'Player'}
+                                                    onRoomCreated={handleCreateMatch}
+                                                    onError={setError}
+                                                />
+                                            ) : (
+                                                <RoomList
+                                                    playerAddress={playerAddress}
+                                                    onJoinMatch={handleJoinMatch}
+                                                />
+                                            )}
+                                        </div>
+                                    )
                             ) : (
                                 <div className="text-center py-16">
-                                    <p className="text-text-secondary mb-4">Connect your wallet to create or join games</p>
+                                        <p className="text-text-secondary mb-4">Connect your wallet to create or join matches</p>
                                     <button onClick={login} className="btn btn-primary">
                                         Connect Wallet
                                     </button>
@@ -334,66 +471,266 @@ function AppContent() {
                     } 
                 />
 
+                {/* Match History */}
+                <Route
+                    path="/history"
+                    element={
+                        authenticated && playerAddress ? (
+                            <MatchHistoryPage
+                                walletAddress={playerAddress}
+                                onMatchClick={(matchId) => navigate(`/match/${matchId}`)}
+                            />
+                        ) : (
+                            <div className="text-center py-16">
+                                <p className="text-text-secondary mb-4">Connect your wallet to view match history</p>
+                                <button onClick={login} className="btn btn-primary">
+                                    Connect Wallet
+                                </button>
+                            </div>
+                        )
+                    }
+                />
+
+                {/* Match Detail */}
+                <Route
+                    path="/match/:matchId"
+                    element={
+                        <MatchDetailRouteWrapper
+                            playerAddress={playerAddress}
+                            onBack={() => navigate('/history')}
+                            onJoinMatch={handleJoinMatch}
+                            onSpectate={(matchId) => navigate(`/game/${matchId}`)}
+                        />
+                    }
+                />
+
                 {/* Active Game */}
                 <Route 
                     path="/game/:roomId" 
                     element={
-                        <div className="max-w-4xl mx-auto px-4 py-8">
-                            {error && (
-                                <div className="bg-no/20 border border-no text-no p-4 rounded-lg mb-5 text-center">
-                                    {error}
-                                </div>
-                            )}
-
-                            {currentRoom ? (
-                                <div className="flex flex-col items-center">
-                                    <div className="mb-5 text-center">
-                                        <button
-                                            onClick={handleBackToLobby}
-                                            className="btn btn-secondary"
-                                        >
-                                            ← Back to Lobby
-                                        </button>
-                                    </div>
-                                    <div className="card p-6 mb-5 text-center w-full max-w-md">
-                                        <h2 className="text-xl font-bold text-text-primary mb-2">
-                                            Room: {currentRoom.id.slice(0, 8)}...
-                                        </h2>
-                                        <p className="text-text-secondary">Entry Fee: {currentRoom.entryFee.toFixed(2)} {currentRoom.currency}</p>
-                                        <p className="text-text-secondary">Status: {currentRoom.status}</p>
-                                        <p className="text-text-secondary">Players: {currentRoom.players.length}/2</p>
-                                    </div>
-                                    {currentRoom.players.length === 2 && currentRoom.status === 'active' ? (
-                                        <ChessBoard
-                                            room={currentRoom}
-                                            playerAddress={playerAddress}
-                                            onGameOver={handleGameOver}
-                                        />
-                                    ) : (
-                                        <div className="card p-10 text-center">
-                                            <div className="w-12 h-12 border-4 border-accent border-t-transparent rounded-full animate-spin mx-auto mb-4" />
-                                            <p className="text-lg text-text-secondary">
-                                                Waiting for opponent to join...
-                                            </p>
-                                            <p className="mt-2 text-text-tertiary">
-                                                {currentRoom.players.length}/2 players
-                                            </p>
-                                        </div>
-                                    )}
-                                </div>
-                            ) : (
-                                <div className="text-center py-16">
-                                    <p className="text-text-secondary">Room not found or loading...</p>
-                                    <button onClick={handleBackToLobby} className="btn btn-secondary mt-4">
-                                        Back to Lobby
-                                    </button>
-                                </div>
-                            )}
-                        </div>
-                    } 
+                        <GameRouteParamsWrapper
+                            playerAddress={playerAddress}
+                            currentRoom={currentRoom}
+                            error={error}
+                            onBack={handleBackToLobby}
+                            onGameOver={handleGameOver}
+                        />
+                    }
                 />
             </Routes>
         </Layout>
+    );
+}
+
+// Wrapper component to extract route params and pass to GameRouteWrapper
+function GameRouteParamsWrapper({
+    playerAddress,
+    currentRoom,
+    error,
+    onBack,
+    onGameOver
+}: {
+    playerAddress: string;
+    currentRoom: Room | null;
+    error: string;
+    onBack: () => void;
+    onGameOver: (winner?: 'white' | 'black' | 'draw') => void;
+}) {
+    const { roomId } = useParams<{ roomId: string; }>();
+
+    return (
+        <GameRouteWrapper
+            roomId={roomId || ''}
+            playerAddress={playerAddress}
+            currentRoom={currentRoom}
+            error={error}
+            onBack={onBack}
+            onGameOver={onGameOver}
+        />
+    );
+}
+
+// Wrapper component to handle game route (player or spectator)
+function GameRouteWrapper({
+    roomId,
+    playerAddress,
+    currentRoom,
+    error,
+    onBack,
+    onGameOver
+}: {
+    roomId: string;
+    playerAddress: string;
+    currentRoom: Room | null;
+    error: string;
+    onBack: () => void;
+    onGameOver: (winner?: 'white' | 'black' | 'draw') => void;
+}) {
+    const [isSpectator, setIsSpectator] = useState(false);
+    const [loading, setLoading] = useState(true);
+    const [attemptedJoin, setAttemptedJoin] = useState(false);
+
+    useEffect(() => {
+        const checkMatch = async () => {
+            if (!roomId || !playerAddress) {
+                setLoading(false);
+                return;
+            }
+
+            try {
+                const match = await getMatchById(roomId);
+
+                // Check if user is a player
+                const isPlayer1 = match.player1.wallet.toLowerCase() === playerAddress.toLowerCase();
+                const isPlayer2 = match.player2.wallet.toLowerCase() === playerAddress.toLowerCase();
+
+                if (!isPlayer1 && !isPlayer2) {
+                    setIsSpectator(true);
+                    setLoading(false);
+                } else {
+                    // User is a player - wait for currentRoom to be set by socket event
+                    // If currentRoom is already set, stop loading
+                    if (currentRoom && currentRoom.id === roomId) {
+                        setLoading(false);
+                    } else if (!attemptedJoin) {
+                        // Wait a bit for socket event to fire (in case we just joined)
+                        const timeout = setTimeout(() => {
+                            if (!currentRoom || currentRoom.id !== roomId) {
+                                setAttemptedJoin(true);
+                                // Only try to join if we haven't already attempted to join this match
+                                // Check if parent component is already joining this match
+                                console.log('GameRouteWrapper: Attempting to join match:', roomId);
+                                socketService.joinMatch(roomId, playerAddress, match.stakeAmount);
+                            }
+                        }, 1000); // Increased timeout to give more time for socket event
+
+                        return () => clearTimeout(timeout);
+                    }
+                }
+            } catch (err) {
+                console.error('Failed to load match:', err);
+                setLoading(false);
+            }
+        };
+
+        checkMatch();
+    }, [roomId, playerAddress]);
+
+    // Stop loading once currentRoom is set for this match
+    useEffect(() => {
+        if (currentRoom && currentRoom.id === roomId) {
+            setLoading(false);
+        }
+    }, [currentRoom, roomId]);
+
+    // Timeout fallback - stop loading after 5 seconds
+    useEffect(() => {
+        const timeout = setTimeout(() => {
+            if (loading) {
+                console.warn('Loading timeout - stopping loading state');
+                setLoading(false);
+            }
+        }, 5000);
+
+        return () => clearTimeout(timeout);
+    }, [loading]);
+
+    if (loading) {
+        return (
+            <div className="max-w-4xl mx-auto px-4 py-8">
+                <div className="text-center py-16">
+                    <div className="w-12 h-12 border-4 border-accent border-t-transparent rounded-full animate-spin mx-auto mb-4" />
+                    <p className="text-text-secondary">Loading game...</p>
+                </div>
+            </div>
+        );
+    }
+
+    if (isSpectator) {
+        return <SpectatorView matchId={roomId} onBack={onBack} />;
+    }
+
+    return (
+        <div className="w-full mx-auto px-2 sm:px-4 py-4 sm:py-6 overflow-x-hidden">
+            {error && (
+                <div className="bg-red-500/20 border border-red-500/30 text-red-400 p-4 rounded-lg mb-5 text-center max-w-4xl mx-auto">
+                    {error}
+                </div>
+            )}
+
+            {currentRoom ? (
+                <div className="flex flex-col items-center w-full">
+                    <div className="mb-4 text-center w-full">
+                        <button
+                            onClick={onBack}
+                            className="btn btn-secondary"
+                        >
+                            ← Back to Lobby
+                        </button>
+                    </div>
+                    {currentRoom.players?.length === 2 && currentRoom.status === 'active' ? (
+                        <ChessBoard
+                            room={currentRoom}
+                            playerAddress={playerAddress}
+                            onGameOver={onGameOver}
+                        />
+                    ) : (
+                        <div className="card p-10 text-center">
+                            <div className="w-12 h-12 border-4 border-accent border-t-transparent rounded-full animate-spin mx-auto mb-4" />
+                            <p className="text-lg text-text-secondary">
+                                Waiting for opponent to join...
+                            </p>
+                            <p className="mt-2 text-text-tertiary">
+                                {currentRoom.players?.length || 0}/2 players
+                            </p>
+                        </div>
+                    )}
+                </div>
+            ) : (
+                <div className="text-center py-16">
+                    <p className="text-text-secondary">Match not found or loading...</p>
+                    <button onClick={onBack} className="btn btn-secondary mt-4">
+                        Back to Lobby
+                    </button>
+                </div>
+            )}
+        </div>
+    );
+}
+
+// Wrapper component to handle match detail route
+function MatchDetailRouteWrapper({
+    playerAddress,
+    onBack,
+    onJoinMatch,
+    onSpectate
+}: {
+    playerAddress: string;
+    onBack: () => void;
+    onJoinMatch: (matchId: string, stakeAmount: number) => void;
+    onSpectate: (matchId: string) => void;
+}) {
+    const { matchId } = useParams<{ matchId: string; }>();
+
+    if (!matchId) {
+        return (
+            <div className="text-center py-16">
+                <p className="text-text-secondary">Match ID not found</p>
+                <button onClick={onBack} className="btn btn-secondary mt-4">
+                    Back
+                </button>
+            </div>
+        );
+    }
+
+    return (
+        <MatchDetailPage
+            matchId={matchId}
+            playerAddress={playerAddress}
+            onBack={onBack}
+            onJoinMatch={onJoinMatch}
+            onSpectate={(matchId: string) => onSpectate(matchId)}
+        />
     );
 }
 

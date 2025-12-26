@@ -25,13 +25,20 @@ app.use(express.static(publicPath));
 // API routes
 app.use("/api/markets", marketsRouter);
 app.use("/api/positions", positionsRouter);
+app.use("/matches", matchRoutes);
+app.use("/users", userRoutes);
 
 // Catch all handler: send back React's index.html file for SPA routing
+// This must be last to avoid catching API routes
 app.get("*", (_req, res) => {
-	res.sendFile(path.join(publicPath, "index.html"));
+	const indexPath = path.join(publicPath, "index.html");
+	res.sendFile(indexPath, err => {
+		if (err) {
+			res.status(404).json({
+				error: "Frontend not built. Please build the frontend first."
+			});
+		}
+	});
 });
-
-app.use("/matches", matchRoutes)
-app.use("/users", userRoutes)
 
 export default app

@@ -33,6 +33,7 @@ export function Layout({
 		{ path: "/", label: "Browse", icon: "🏠" },
 		{ path: "/portfolio", label: "Portfolio", icon: "💼" },
 		{ path: "/create", label: "Create", icon: "➕" },
+		{ path: "/history", label: "History", icon: "📜" },
 	];
 
 	return (
