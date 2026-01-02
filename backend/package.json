@@ -17,6 +17,7 @@
   "author": "",
   "license": "ISC",
   "dependencies": {
+    "@aptos-labs/ts-sdk": "^5.2.0",
     "@types/mongoose": "^5.11.96",
     "chess.js": "^1.4.0",
     "cors": "^2.8.5",

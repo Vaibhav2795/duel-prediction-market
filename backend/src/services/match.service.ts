@@ -2,6 +2,9 @@
 import Match from "@/models/Match"
 import type { CreateMatchInput, MatchStatus } from "@/types/match.types"
 import GameMove from "@/models/GameMove"
+import { createEscrow } from "./blockchain/createEscrow"
+import mongoose from "mongoose"
+// import User from "@/models/User"
 
 class MatchService {
   async createMatch(input: CreateMatchInput) {
@@ -16,15 +19,54 @@ class MatchService {
       throw new Error("Stake amount must be greater than zero")
     }
 
-    const match = await Match.create({
-      player1,
-      player2,
-      scheduledAt,
-      stakeAmount,
-      status: "SCHEDULED",
-    })
+    /*DISABLED FOR TESTING*/
+    // const [player1Exists, player2Exists] = await Promise.all([
+    //   User.exists({ walletAddress: player1.wallet }),
+    //   User.exists({ walletAddress: player2.wallet }),
+    // ])
 
-    return match
+    // if (!player1Exists || !player2Exists) {
+    //   throw new Error("One or both players do not exist")
+    // }
+
+    const session = await mongoose.startSession()
+    try {
+      session.startTransaction()
+
+      const match = await Match.create(
+        [
+          {
+            player1,
+            player2,
+            scheduledAt,
+            stakeAmount,
+            status: "SCHEDULED",
+          },
+        ],
+        { session }
+      )
+
+      const matchData = match[0]
+      if (!matchData) {
+        throw new Error("Failed to create match")
+      }
+      const escrowHash = await createEscrow({
+        matchId: matchData.id,
+        player1: player1?.wallet,
+        player2: player2?.wallet,
+        amount: stakeAmount,
+      })
+
+      await session.commitTransaction()
+
+      console.log(`🚀 ~ escrowHash:`, escrowHash)
+      return match
+    } catch (error) {
+      await session.abortTransaction()
+      throw error
+    } finally {
+      session.endSession()
+    }
   }
 
   async listMatchesByStatus(
