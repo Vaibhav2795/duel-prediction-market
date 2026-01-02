@@ -90,3 +90,16 @@ export async function checkEscrowStoreExists(
     return false
   }
 }
+
+export async function getAccountBalance(
+  accountAddress: string
+): Promise<number> {
+  const resources = await aptos.getAccountResources({ accountAddress })
+  const coinResource = resources.find(
+    (r) => r.type === "0x1::coin::CoinStore<0x1::aptos_coin::AptosCoin>"
+  )
+  if (coinResource && "data" in coinResource) {
+    return Number((coinResource.data as any).coin.value)
+  }
+  return 0
+}

@@ -22,8 +22,13 @@ export async function createEscrow({
   const adminAddress = adminAccount.accountAddress.toString()
 
   const storeExists = await checkEscrowStoreExists(adminAddress)
+
   if (!storeExists) {
-    await initializeEscrow(adminAccount)
+    try {
+      await initializeEscrow(adminAccount)
+    } catch (error) {
+      handleCreateEscrowError(error, { matchId, player1, player2, amount })
+    }
   }
 
   const transaction = await aptos.transaction.build.simple({
