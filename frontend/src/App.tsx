@@ -23,7 +23,7 @@ import type { Room, Market, Bet, Position, UserPortfolio, MarketStats, Outcome }
 function AppContent() {
     const navigate = useNavigate();
     const location = useLocation();
-    const { ready, authenticated, user, login, logout } = usePrivy();
+    const { ready, authenticated, user, login, logout, getAccessToken } = usePrivy();
     const { movementWallet, isMovementWallet, getAddress: getMovementAddress } = useMovementWallet();
     
     // Player state
@@ -32,6 +32,7 @@ function AppContent() {
     const [walletBalance] = useState<number>(1000); // Mock balance
     const [registeredUser, setRegisteredUser] = useState<User | null>(null);
     const [showUserRegistration, setShowUserRegistration] = useState(false);
+    const [backendMovementWallet, setBackendMovementWallet] = useState<{walletId: string; address: string; publicKey: string} | null>(null);
     
     // Chess game state
     const [currentRoom, setCurrentRoom] = useState<Room | null>(null);
@@ -49,31 +50,79 @@ function AppContent() {
     const [isLoading, setIsLoading] = useState(true);
     const [searchValue, setSearchValue] = useState('');
 
-    // Get wallet address from Privy and check user registration
+    // Ensure Movement wallet exists when user authenticates
+    useEffect(() => {
+        if (ready && authenticated && user && getAccessToken) {
+            const ensureWallet = async () => {
+                try {
+                    console.log('🔐 Ensuring Movement wallet for user:', user.id);
+                    console.log('👤 User object:', { id: user.id, wallet: user.wallet });
+                    
+                    let accessToken: string | null = null;
+                    try {
+                        accessToken = await getAccessToken();
+                        console.log('🔑 Access token retrieved:', accessToken ? `Length: ${accessToken.length}, Preview: ${accessToken.substring(0, 30)}...` : 'null');
+                    } catch (err: any) {
+                        console.error('❌ Error getting access token:', err);
+                        console.error('Error details:', err.message);
+                    }
+                    
+                    if (!accessToken) {
+                        console.warn('⚠️ No access token available - trying alternative method');
+                        // Try alternative: use user ID directly (less secure but works for now)
+                        // We'll need to modify backend to accept user ID as fallback
+                        return;
+                    }
+
+                    console.log('📞 Calling backend to ensure Movement wallet...');
+                    const { ensureMovementWallet } = await import('./services/walletService');
+                    // Pass both access token and user ID as fallback
+                    const response = await ensureMovementWallet(accessToken || null, user.id);
+                    
+                    console.log('✅ Movement wallet response:', response);
+                    if (response.success && response.wallet) {
+                        console.log('✅ Movement wallet created/retrieved:', response.wallet.address);
+                        setBackendMovementWallet(response.wallet);
+                    } else {
+                        console.warn('⚠️ Wallet response missing success or wallet data');
+                    }
+                } catch (err: any) {
+                    console.error('❌ Failed to ensure Movement wallet:', err);
+                    console.error('Error details:', err.message, err.stack);
+                }
+            };
+
+            ensureWallet();
+        } else if (ready && !authenticated) {
+            setBackendMovementWallet(null);
+        }
+    }, [ready, authenticated, user, getAccessToken]);
+
+    // Get wallet address from backend-created Movement wallet or Privy
+    // Only use Movement wallets - no EVM fallback
     useEffect(() => {
         if (ready && authenticated && user) {
             let address = '';
 
-            if (isMovementWallet && movementWallet) {
+            // Prefer backend-created Movement wallet
+            if (backendMovementWallet?.address) {
+                address = backendMovementWallet.address;
+                console.log('✅ Using backend Movement wallet address:', address);
+            } else if (isMovementWallet && movementWallet) {
+                // Fallback to Privy wallet if backend wallet not available yet
                 const movementAddress = getMovementAddress();
                 if (movementAddress) {
                     address = movementAddress;
+                    console.log('✅ Using Privy Movement wallet address:', address);
                 }
             }
             
-            if (!address) {
-                const wallet = user.wallet;
-                if (wallet?.address) {
-                    address = wallet.address;
-                } else {
-                    address = user.id || '';
-                }
-            }
-
-            setPlayerAddress(address);
-
-            // Check if user is registered
+            // Set address immediately when available
             if (address) {
+                setPlayerAddress(address);
+                console.log('📍 Wallet address set in UI:', address);
+
+                // Check if user is registered
                 const checkUserRegistration = async () => {
                     try {
                         const { getUserByWallet } = await import('./services/userService');
@@ -94,13 +143,17 @@ function AppContent() {
                 };
 
                 checkUserRegistration();
+            } else {
+                console.log('⏳ Waiting for Movement wallet to be created...');
+                // Don't clear the address if we're waiting - keep previous value if any
             }
         } else if (ready && !authenticated) {
             setPlayerAddress('');
             setRegisteredUser(null);
             setShowUserRegistration(false);
+            setBackendMovementWallet(null);
         }
-    }, [ready, authenticated, user, isMovementWallet, movementWallet, getMovementAddress]);
+    }, [ready, authenticated, user, isMovementWallet, movementWallet, getMovementAddress, backendMovementWallet]);
 
     // Fetch markets data
     const fetchMarkets = useCallback(async () => {
