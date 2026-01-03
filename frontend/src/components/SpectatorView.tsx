@@ -36,16 +36,19 @@ export function SpectatorView({ matchId, onBack }: SpectatorViewProps) {
 		};
 
 		const handleMoveMade = (data: {
-			move: any;
-			fen: string;
+			gameState: string;
+			room: any;
 			isGameOver?: boolean;
 			winner?: 'white' | 'black' | 'draw';
 			currentTurn?: 'white' | 'black';
 		}) => {
-			setGameState(data.fen);
-			setGame(new Chess(data.fen));
+			if (data.gameState) {
+				setGameState(data.gameState);
+				setGame(new Chess(data.gameState));
+			}
 			if (data.currentTurn) setCurrentTurn(data.currentTurn);
-			if (data.isGameOver) setStatus('finished');
+			if (data.room?.currentTurn) setCurrentTurn(data.room.currentTurn);
+			if (data.isGameOver || data.room?.status === 'finished') setStatus('finished');
 		};
 
 		const handleMatchFinished = (data: {

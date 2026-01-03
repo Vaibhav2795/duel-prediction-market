@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { mockBettingService } from "../services/mockBettingService.js";
+import { marketService } from "../services/market.service.js";
 import type { MarketStatus, MarketCategory, Outcome } from "../types/game.js";
 
 const router = Router();
@@ -9,7 +9,7 @@ router.get("/", async (req, res) => {
 	try {
 		const { status, category, search, sortBy, limit, offset } = req.query;
 		
-		const result = await mockBettingService.getMarkets({
+		const result = await marketService.getMarkets({
 			status: status as MarketStatus | "all" | undefined,
 			category: category as MarketCategory | "all" | undefined,
 			search: search as string | undefined,
@@ -28,7 +28,7 @@ router.get("/", async (req, res) => {
 // GET /api/markets/stats - Get market statistics
 router.get("/stats", async (_req, res) => {
 	try {
-		const stats = await mockBettingService.getStats();
+		const stats = await marketService.getStats();
 		res.json(stats);
 	} catch (error) {
 		console.error("Error fetching stats:", error);
@@ -40,7 +40,7 @@ router.get("/stats", async (_req, res) => {
 router.get("/trending", async (req, res) => {
 	try {
 		const limit = req.query.limit ? parseInt(req.query.limit as string) : 5;
-		const markets = await mockBettingService.getTrendingMarkets(limit);
+		const markets = await marketService.getTrendingMarkets(limit);
 		res.json(markets);
 	} catch (error) {
 		console.error("Error fetching trending markets:", error);
@@ -52,7 +52,7 @@ router.get("/trending", async (req, res) => {
 router.get("/ending-soon", async (req, res) => {
 	try {
 		const limit = req.query.limit ? parseInt(req.query.limit as string) : 5;
-		const markets = await mockBettingService.getEndingSoonMarkets(limit);
+		const markets = await marketService.getEndingSoonMarkets(limit);
 		res.json(markets);
 	} catch (error) {
 		console.error("Error fetching ending soon markets:", error);
@@ -64,7 +64,7 @@ router.get("/ending-soon", async (req, res) => {
 router.get("/new", async (req, res) => {
 	try {
 		const limit = req.query.limit ? parseInt(req.query.limit as string) : 5;
-		const markets = await mockBettingService.getNewMarkets(limit);
+		const markets = await marketService.getNewMarkets(limit);
 		res.json(markets);
 	} catch (error) {
 		console.error("Error fetching new markets:", error);
@@ -75,7 +75,7 @@ router.get("/new", async (req, res) => {
 // GET /api/markets/:id - Get single market
 router.get("/:id", async (req, res) => {
 	try {
-		const market = await mockBettingService.getMarket(req.params.id);
+		const market = await marketService.getMarket(req.params.id);
 		
 		if (!market) {
 			return res.status(404).json({ error: "Market not found" });
@@ -89,11 +89,12 @@ router.get("/:id", async (req, res) => {
 });
 
 // GET /api/markets/:id/bets - Get bets for a market
+// TODO: Implement real betting service when betting functionality is ready
 router.get("/:id/bets", async (req, res) => {
 	try {
 		const limit = req.query.limit ? parseInt(req.query.limit as string) : undefined;
-		const bets = await mockBettingService.getMarketBets(req.params.id, limit);
-		res.json(bets);
+		// Return empty array until betting service is implemented
+		res.json([]);
 	} catch (error) {
 		console.error("Error fetching market bets:", error);
 		res.status(500).json({ error: "Failed to fetch market bets" });
@@ -101,6 +102,7 @@ router.get("/:id/bets", async (req, res) => {
 });
 
 // POST /api/markets/:id/bet - Place a bet
+// TODO: Implement real betting service when betting functionality is ready
 router.post("/:id/bet", async (req, res) => {
 	try {
 		const { userAddress, outcome, side, amount } = req.body;
@@ -109,19 +111,11 @@ router.post("/:id/bet", async (req, res) => {
 			return res.status(400).json({ error: "Missing required fields" });
 		}
 		
-		const result = await mockBettingService.placeBet(
-			req.params.id,
-			userAddress,
-			outcome as Outcome,
-			side as "yes" | "no",
-			parseFloat(amount)
-		);
-		
-		if (result.success) {
-			res.json({ success: true, bet: result.bet });
-		} else {
-			res.status(400).json({ success: false, error: result.error });
-		}
+		// Return error until betting service is implemented
+		res.status(501).json({ 
+			success: false, 
+			error: "Betting functionality is not yet implemented" 
+		});
 	} catch (error) {
 		console.error("Error placing bet:", error);
 		res.status(500).json({ error: "Failed to place bet" });

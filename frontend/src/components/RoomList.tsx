@@ -29,23 +29,23 @@ export default function RoomList({ playerAddress, onJoinMatch }: RoomListProps) 
         };
 
         fetchMatches();
-        // Refresh every 10 seconds
-        const interval = setInterval(fetchMatches, 10000);
+        // Refresh every 30 seconds (reduced from 10 seconds to reduce API calls)
+        const interval = setInterval(fetchMatches, 30000);
         return () => clearInterval(interval);
     }, []);
 
     if (loading) {
         return (
             <div className="text-center py-8">
-                <div className="w-8 h-8 border-4 border-indigo-500 border-t-transparent rounded-full animate-spin mx-auto mb-4" />
-                <p className="text-gray-600">Loading matches...</p>
+                <div className="w-8 h-8 border-4 border-accent border-t-transparent rounded-full animate-spin mx-auto mb-4" />
+                <p className="text-text-secondary">Loading matches...</p>
             </div>
         );
     }
 
     if (error) {
         return (
-            <div className="bg-red-50 border border-red-200 text-red-700 p-4 rounded-lg">
+            <div className="bg-red-500/20 border border-red-500/30 text-red-400 p-4 rounded-lg">
                 <p className="font-semibold">Error loading matches</p>
                 <p className="text-sm">{error}</p>
             </div>
@@ -53,12 +53,12 @@ export default function RoomList({ playerAddress, onJoinMatch }: RoomListProps) 
     }
 
     return (
-        <div className="bg-white p-5 rounded-xl max-w-2xl mx-auto">
-            <h2 className="mb-5 text-gray-800 text-xl font-semibold">Available Matches</h2>
+        <div className="card max-w-2xl mx-auto">
+            <h2 className="mb-5 text-text-primary text-xl font-semibold">Available Matches</h2>
             {matches.length === 0 ? (
-                <p className="text-gray-600 text-center py-8">No scheduled matches. Create one to start!</p>
+                <p className="text-text-secondary text-center py-8">No scheduled matches. Create one to start!</p>
             ) : (
-                <div className="flex flex-col gap-2.5">
+                    <div className="flex flex-col gap-3">
                         {matches.map((match) => {
                             const isPlayer1 = match.player1.wallet.toLowerCase() === playerAddress.toLowerCase();
                             const isPlayer2 = match.player2.wallet.toLowerCase() === playerAddress.toLowerCase();
@@ -68,28 +68,30 @@ export default function RoomList({ playerAddress, onJoinMatch }: RoomListProps) 
                             return (
                                 <div
                                 key={match.id}
-                                className="p-4 border border-gray-300 rounded-lg hover:shadow-md transition-shadow"
+                                className="p-4 bg-dark-200 border border-border rounded-lg hover:bg-dark-100 hover:border-border-secondary transition-all"
                             >
-                                <div className="flex justify-between items-start mb-2">
-                                    <div className="flex-1">
-                                        <p className="font-bold text-gray-800 mb-1">
+                                <div className="flex justify-between items-start gap-4">
+                                    <div className="flex-1 min-w-0">
+                                        <p className="font-bold text-text-primary mb-2 text-lg">
                                             {match.player1.name} vs {match.player2.name}
                                         </p>
-                                        <p className="text-gray-600 text-sm mb-1">
-                                            Stake: ${match.stakeAmount.toFixed(2)}
-                                        </p>
-                                        <p className="text-gray-500 text-xs">
-                                            Scheduled: {new Date(match.scheduledAt).toLocaleString()}
-                                        </p>
-                                        <p className="text-gray-500 text-xs">
-                                            Status: {match.status}
-                                        </p>
+                                        <div className="space-y-1">
+                                            <p className="text-text-secondary text-sm">
+                                                <span className="font-medium">Stake:</span> ${match.stakeAmount.toFixed(2)}
+                                            </p>
+                                            <p className="text-text-tertiary text-xs">
+                                                <span className="font-medium">Scheduled:</span> {new Date(match.scheduledAt).toLocaleString()}
+                                            </p>
+                                            <p className="text-text-tertiary text-xs">
+                                                <span className="font-medium">Status:</span> <span className="uppercase">{match.status}</span>
+                                            </p>
+                                        </div>
                                     </div>
-                                    <div className="flex gap-2">
+                                    <div className="flex gap-2 flex-shrink-0">
                                         {canJoin && !isFull && (
                                             <button
                                                 onClick={() => onJoinMatch(match.id, match.stakeAmount)}
-                                                className="px-5 py-2.5 text-white border-none rounded-md font-bold transition-colors text-sm bg-indigo-500 cursor-pointer hover:bg-indigo-600"
+                                                className="btn btn-primary px-4 py-2 text-sm whitespace-nowrap"
                                             >
                                                 Join Match
                                             </button>
@@ -97,13 +99,13 @@ export default function RoomList({ playerAddress, onJoinMatch }: RoomListProps) 
                                         {isFull && (
                                             <button
                                                 onClick={() => navigate(`/match/${match.id}`)}
-                                                className="px-5 py-2.5 text-white border-none rounded-md font-bold transition-colors text-sm bg-purple-500 cursor-pointer hover:bg-purple-600"
+                                                className="btn px-4 py-2 text-sm whitespace-nowrap bg-purple-500 hover:bg-purple-600 text-white border-none"
                                             >
                                                 View / Spectate
                                             </button>
                                         )}
                                         {!canJoin && !isFull && (
-                                            <span className="px-5 py-2.5 text-gray-600 border border-gray-300 rounded-md text-sm bg-gray-100">
+                                            <span className="px-4 py-2 text-text-tertiary border border-border rounded-lg text-sm bg-dark-300 whitespace-nowrap">
                                                 Not Assigned
                                             </span>
                                         )}

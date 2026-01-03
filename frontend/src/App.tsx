@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { BrowserRouter, Routes, Route, useNavigate, useParams, useLocation } from 'react-router-dom';
 import { usePrivy } from '@privy-io/react-auth';
 import { Layout } from './components/Layout';
@@ -48,6 +48,12 @@ function AppContent() {
     const [marketStats, setMarketStats] = useState<MarketStats | null>(null);
     const [isLoading, setIsLoading] = useState(true);
     const [searchValue, setSearchValue] = useState('');
+
+    // Track last fetch times to prevent excessive API calls
+    const lastMarketsFetch = useRef<number>(0);
+    const lastPortfolioFetch = useRef<number>(0);
+    const MARKETS_FETCH_INTERVAL = 60000; // 60 seconds
+    const PORTFOLIO_FETCH_INTERVAL = 30000; // 30 seconds
 
     // Get wallet address from Privy and check user registration
     useEffect(() => {
@@ -103,7 +109,13 @@ function AppContent() {
     }, [ready, authenticated, user, isMovementWallet, movementWallet, getMovementAddress]);
 
     // Fetch markets data
-    const fetchMarkets = useCallback(async () => {
+    const fetchMarkets = useCallback(async (force = false) => {
+        const now = Date.now();
+        if (!force && (now - lastMarketsFetch.current) < MARKETS_FETCH_INTERVAL) {
+            return; // Skip if called too soon
+        }
+        lastMarketsFetch.current = now;
+
         setIsLoading(true);
         try {
             const result = await bettingService.getMarkets();
@@ -111,36 +123,48 @@ function AppContent() {
             const stats = await bettingService.getMarketStats();
             setMarketStats(stats);
         } catch (err) {
-            // Fallback to mock data if API is not available
-            console.log('Using mock data (API not available)');
-            setMarkets(bettingService.generateMockMarkets());
-            setMarketStats(bettingService.generateMockStats());
+            console.error('Failed to fetch markets:', err);
+            setMarkets([]);
+            setMarketStats(null);
+            setError('Failed to load markets. Please try again later.');
         } finally {
             setIsLoading(false);
         }
     }, []);
 
     // Fetch user portfolio
-    const fetchPortfolio = useCallback(async () => {
+    const fetchPortfolio = useCallback(async (force = false) => {
         if (!playerAddress) return;
+
+        const now = Date.now();
+        if (!force && (now - lastPortfolioFetch.current) < PORTFOLIO_FETCH_INTERVAL) {
+            return; // Skip if called too soon
+        }
+        lastPortfolioFetch.current = now;
+
         try {
             const portfolio = await bettingService.getUserPortfolio(playerAddress);
             setUserPortfolio(portfolio);
             setUserPositions(portfolio.positions);
         } catch (err) {
-            // Fallback to mock data
-            const mockPortfolio = bettingService.generateMockPortfolio(playerAddress);
-            setUserPortfolio(mockPortfolio);
-            setUserPositions(mockPortfolio.positions);
+            console.error('Failed to fetch portfolio:', err);
+            setUserPortfolio(null);
+            setUserPositions([]);
         }
     }, [playerAddress]);
+
+    // Fetch markets and portfolio on mount and when player address changes
+    useEffect(() => {
+        if (ready && authenticated && playerAddress) {
+            fetchMarkets();
+            fetchPortfolio();
+        }
+    }, [ready, authenticated, playerAddress, fetchMarkets, fetchPortfolio]);
 
     // Initialize socket connection
     useEffect(() => {
         if (ready && authenticated && playerAddress) {
             socketService.connect();
-            fetchMarkets();
-            fetchPortfolio();
         }
 
         const handleMatchJoined = (room: Room) => {
@@ -244,7 +268,7 @@ function AppContent() {
             socketService.off('join_error', handleError);
             socketService.off('player_left', handlePlayerLeft);
         };
-    }, [ready, authenticated, playerAddress, navigate, fetchMarkets, fetchPortfolio, joiningMatchId]);
+    }, [ready, authenticated, playerAddress, navigate, joiningMatchId]);
 
     // Navigation handlers
     const handleNavigate = (path: string) => {
@@ -271,12 +295,12 @@ function AppContent() {
                 // Refresh market and portfolio
                 const updatedMarket = await bettingService.getMarket(currentMarket.id);
                 setCurrentMarket(updatedMarket);
-                fetchPortfolio();
+                fetchPortfolio(true); // Force refresh after bet placement
             }
         } catch (err) {
             console.error('Failed to place bet:', err);
             // Mock success for demo
-            fetchPortfolio();
+            fetchPortfolio(true); // Force refresh after bet placement
         }
     };
 
@@ -678,8 +702,8 @@ function GameRouteWrapper({
                         <div className="card p-10 text-center">
                             <div className="w-12 h-12 border-4 border-accent border-t-transparent rounded-full animate-spin mx-auto mb-4" />
                             <p className="text-lg text-text-secondary">
-                                Waiting for opponent to join...
-                            </p>
+                                    Waiting for opponent to join...
+                                </p>
                             <p className="mt-2 text-text-tertiary">
                                 {currentRoom.players?.length || 0}/2 players
                             </p>

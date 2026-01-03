@@ -37,12 +37,21 @@ class MatchService {
 
     const skip = (page - 1) * limit
 
+    // Build query - exclude expired matches (scheduledAt in the past)
+    const now = new Date()
+    const query: any = { status: finalStatus }
+    
+    // For SCHEDULED matches, only show those that haven't expired yet
+    if (finalStatus === "SCHEDULED") {
+      query.scheduledAt = { $gte: now }
+    }
+
     const [matches, total] = await Promise.all([
-      Match.find({ status: finalStatus })
+      Match.find(query)
         .sort({ scheduledAt: 1 })
         .skip(skip)
         .limit(limit),
-      Match.countDocuments({ status: finalStatus }),
+      Match.countDocuments(query),
     ])
 
     return {
