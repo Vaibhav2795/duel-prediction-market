@@ -1,6 +1,10 @@
 import { createAccountFromPrivateKey, MODULE_ADDRESS } from "./config.js";
 import { initializeEscrow, createEscrow, deposit, resolveWin, resolveDraw, checkEscrowStoreExists } from "./escrow.js";
 
+import dotenv from "dotenv";
+
+dotenv.config();
+
 /**
  * Example script demonstrating escrow contract interactions
  * 

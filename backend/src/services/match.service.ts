@@ -3,6 +3,8 @@ import Match from "@/models/Match"
 import type { CreateMatchInput, MatchStatus } from "@/types/match.types"
 import GameMove from "@/models/GameMove"
 import { createEscrow } from "./blockchain/createEscrow"
+import { createMarket } from "./blockchain/predictionMarket"
+import { objectIdToNumber } from "./blockchain/escrow.utils"
 import mongoose from "mongoose"
 // import User from "@/models/User"
 
@@ -50,17 +52,30 @@ class MatchService {
       if (!matchData) {
         throw new Error("Failed to create match")
       }
+      
+      // Convert MongoDB ObjectId to number for Move contract (u64)
+      const matchIdNumber = objectIdToNumber(matchData.id)
+      
+      // Create escrow for the match
       const escrowHash = await createEscrow({
-        matchId: matchData.id,
+        matchId: matchIdNumber,
         player1: player1?.wallet,
         player2: player2?.wallet,
         amount: stakeAmount,
       })
 
+      // Create prediction market for the match
+      const marketHash = await createMarket({
+        matchId: matchIdNumber,
+        player1: player1?.wallet,
+        player2: player2?.wallet,
+      })
+
       await session.commitTransaction()
 
       console.log(`🚀 ~ escrowHash:`, escrowHash)
-      return match
+      console.log(`🚀 ~ marketHash:`, marketHash)
+      return matchData
     } catch (error) {
       await session.abortTransaction()
       throw error
