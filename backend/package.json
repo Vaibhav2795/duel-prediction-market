@@ -17,6 +17,7 @@
   "author": "",
   "license": "ISC",
   "dependencies": {
+    "@privy-io/node": "^0.7.0",
     "@types/mongoose": "^5.11.96",
     "chess.js": "^1.4.0",
     "cors": "^2.8.5",
