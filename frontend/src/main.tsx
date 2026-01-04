@@ -9,20 +9,16 @@ const PRIVY_APP_ID = import.meta.env.VITE_PRIVY_APP_ID;
 ReactDOM.createRoot(document.getElementById('root')!).render(
     <React.StrictMode>
         {PRIVY_APP_ID ? (
-            <PrivyProvider
-                appId={PRIVY_APP_ID}
-                config={{
-                    loginMethods: ['wallet', 'email', 'sms'],
-                    appearance: {
-                        theme: 'dark',
-                        accentColor: '#00d26a',
-                    },
-                    embeddedWallets: {
-                        createOnLogin: 'users-without-wallets',
-                        requireUserPasswordOnCreate: false,
-                    },
-                }}
-            >
+                <PrivyProvider
+                    appId={PRIVY_APP_ID}
+                    config={{
+                        loginMethods: ['email'],
+                        appearance: {
+                            theme: 'dark',
+                            accentColor: '#00d26a',
+                        },
+                    }}
+                >
                 <App />
             </PrivyProvider>
         ) : (
@@ -33,7 +29,7 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
                     </div>
                     <h1 className="mb-4 text-2xl font-bold text-white">ChessBet Setup Required</h1>
                     <p className="mb-6 text-[#a1a1a1]">
-                        Please set up your Privy App ID to use wallet authentication.
+                        Please set up your Privy App ID to enable user authentication.
                     </p>
                     <ol className="text-left mb-6 list-decimal list-inside space-y-3 text-[#a1a1a1]">
                         <li>Go to <a href="https://dashboard.privy.io" target="_blank" rel="noopener noreferrer" className="text-[#00d26a] underline hover:text-[#00b85c]">Privy Dashboard</a> and create an app</li>

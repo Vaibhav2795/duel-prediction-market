@@ -28,6 +28,17 @@ export function Layout({
 }: LayoutProps) {
 	const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 	const [isProfileOpen, setIsProfileOpen] = useState(false);
+	const [copied, setCopied] = useState(false);
+
+	const handleCopyAddress = async (address: string) => {
+		try {
+			await navigator.clipboard.writeText(address);
+			setCopied(true);
+			setTimeout(() => setCopied(false), 2000);
+		} catch (err) {
+			console.error('Failed to copy address:', err);
+		}
+	};
 
 	const navItems = [
 		{ path: "/", label: "Browse", icon: "🏠" },
@@ -123,12 +134,32 @@ export function Layout({
 									>
 										<div className="w-6 h-6 rounded-full bg-accent flex items-center justify-center">
 											<span className="text-xs text-dark-500 font-bold">
-												{walletAddress?.[2]?.toUpperCase() || "U"}
+												{walletAddress?.[2]?.toUpperCase() || walletAddress?.[0]?.toUpperCase() || "U"}
 											</span>
 										</div>
 										<span className="hidden sm:block text-sm font-medium text-text-primary">
-											{formatAddress(walletAddress || "")}
+											{walletAddress ? formatAddress(walletAddress) : "Creating wallet..."}
 										</span>
+										{walletAddress && (
+											<button
+												onClick={(e) => {
+													e.stopPropagation();
+													handleCopyAddress(walletAddress);
+												}}
+												className="p-1 hover:bg-dark-300 rounded transition-colors"
+												title={copied ? "Copied!" : "Copy wallet address"}
+											>
+												{copied ? (
+													<svg className="w-4 h-4 text-accent" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+														<path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+													</svg>
+												) : (
+													<svg className="w-4 h-4 text-text-tertiary hover:text-text-primary" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+														<path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+													</svg>
+												)}
+											</button>
+										)}
 										<svg className="w-4 h-4 text-text-tertiary" fill="none" viewBox="0 0 24 24" stroke="currentColor">
 											<path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
 										</svg>
@@ -136,15 +167,38 @@ export function Layout({
 
 									{/* Dropdown */}
 									{isProfileOpen && (
-										<div className="absolute right-0 mt-2 w-56 bg-dark-200 border border-border rounded-xl shadow-lg overflow-hidden animate-slideDown">
+										<div className="absolute right-0 mt-2 w-72 bg-dark-200 border border-border rounded-xl shadow-lg overflow-hidden animate-slideDown z-50">
 											<div className="p-4 border-b border-border">
 												<div className="text-xs text-text-tertiary mb-1">Connected as</div>
-												<div className="text-sm font-medium text-text-primary truncate">
-													{walletAddress}
+												<div className="flex items-center gap-2 group">
+													<div className="text-sm font-mono text-text-primary break-all flex-1">
+														{walletAddress || "Creating wallet..."}
+													</div>
+													{walletAddress && (
+														<button
+															onClick={() => {
+																handleCopyAddress(walletAddress);
+															}}
+															className="p-1.5 hover:bg-dark-300 rounded transition-colors flex-shrink-0"
+															title={copied ? "Copied!" : "Copy wallet address"}
+														>
+															{copied ? (
+																<svg className="w-4 h-4 text-accent" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+																	<path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+																</svg>
+															) : (
+																<svg className="w-4 h-4 text-text-tertiary hover:text-text-primary" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+																	<path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+																</svg>
+															)}
+														</button>
+													)}
 												</div>
-												<div className="mt-2 text-sm text-accent font-medium">
-													{formatCurrency(walletBalance)}
-												</div>
+												{walletAddress && (
+													<div className="mt-2 text-sm text-accent font-medium">
+														{formatCurrency(walletBalance)}
+													</div>
+												)}
 											</div>
 											<div className="p-2">
 												<button
