@@ -1,6 +1,6 @@
 // routes/wallet.routes.ts
 import { Router } from 'express';
-import { ensureMovementWallet, listUserWallets } from '@/controllers/wallet.controller';
+import { ensureMovementWallet, listUserWallets, signTransaction } from '@/controllers/wallet.controller';
 import { verifyPrivyToken } from '@/middleware/auth.middleware';
 
 const router = Router();
@@ -13,6 +13,9 @@ router.post('/ensure', ensureMovementWallet);
 
 // GET /api/wallet/list - List all wallets for authenticated user (for debugging)
 router.get('/list', listUserWallets);
+
+// POST /api/wallet/sign - Sign a transaction hash
+router.post('/sign', signTransaction);
 
 export default router;
 

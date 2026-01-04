@@ -309,27 +309,55 @@ function AppContent() {
     };
 
     const handlePlaceBet = async (outcome: Outcome, side: "yes" | "no", amount: number) => {
-        if (!currentMarket || !playerAddress) return;
+        if (!currentMarket || !playerAddress || !movementWallet) {
+            console.error('Missing required data for betting:', { currentMarket, playerAddress, movementWallet });
+            return;
+        }
         
         try {
-            const result = await bettingService.placeBet(
-                currentMarket.id,
-                playerAddress,
+            // Get access token for signing
+            let accessToken: string | null = null;
+            try {
+                accessToken = await getAccessToken();
+            } catch (err) {
+                console.warn('Could not get access token, proceeding without it');
+            }
+
+            // Import blockchain betting service
+            const { placeBetOnChain } = await import('./services/blockchainBettingService');
+            
+            // Place bet on blockchain
+            console.log('🎲 Placing bet on blockchain...');
+            const result = await placeBetOnChain(
+                movementWallet,
+                currentMarket.room.id, // Use room.id as matchId
                 outcome,
-                side,
-                amount
+                amount,
+                accessToken
             );
             
-            if (result.success) {
-                // Refresh market and portfolio
-                const updatedMarket = await bettingService.getMarket(currentMarket.id);
-                setCurrentMarket(updatedMarket);
-                fetchPortfolio();
+            console.log('✅ Bet placed successfully:', result.hash);
+            
+            // Also call the backend API to update the database
+            try {
+                await bettingService.placeBet(
+                    currentMarket.id,
+                    playerAddress,
+                    outcome,
+                    side,
+                    amount
+                );
+            } catch (apiErr) {
+                console.warn('Backend API call failed, but blockchain transaction succeeded:', apiErr);
             }
-        } catch (err) {
-            console.error('Failed to place bet:', err);
-            // Mock success for demo
+            
+            // Refresh market and portfolio
+            const updatedMarket = await bettingService.getMarket(currentMarket.id);
+            setCurrentMarket(updatedMarket);
             fetchPortfolio();
+        } catch (err: any) {
+            console.error('Failed to place bet:', err);
+            alert(`Failed to place bet: ${err.message || 'Unknown error'}`);
         }
     };
 

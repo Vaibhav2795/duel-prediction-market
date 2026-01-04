@@ -1,6 +1,6 @@
 import { useState, useMemo } from "react";
 import type { Market, Outcome, OutcomeData, Position } from "../types/game";
-import { formatCurrency } from "../styles/designTokens";
+import { formatCurrency, formatAddress } from "../styles/designTokens";
 
 interface BettingInterfaceProps {
 	market: Market;
@@ -22,7 +22,7 @@ export function BettingInterface({
 	isConnected = true
 }: BettingInterfaceProps) {
 	const [activeOutcome, setActiveOutcome] = useState<Outcome | null>(selectedOutcome || null);
-	const [activeSide, setActiveSide] = useState<"yes" | "no">("yes");
+	const [activeSide] = useState<"yes" | "no">("yes"); // Always "yes" when betting on an outcome
 	const [amount, setAmount] = useState<string>("");
 	const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -33,8 +33,8 @@ export function BettingInterface({
 
 	const currentPrice = useMemo(() => {
 		if (!outcomeData) return 0;
-		return activeSide === "yes" ? outcomeData.yesPrice : outcomeData.noPrice;
-	}, [outcomeData, activeSide]);
+		return outcomeData.yesPrice; // Always betting "yes" on the selected outcome
+	}, [outcomeData]);
 
 	const potentialPayout = useMemo(() => {
 		const numAmount = parseFloat(amount) || 0;
@@ -54,9 +54,12 @@ export function BettingInterface({
 
 	const outcomeLabel = (outcome: Outcome) => {
 		switch (outcome) {
-			case "white": return "White wins";
-			case "black": return "Black wins";
-			case "draw": return "Draw";
+			case "white": 
+				return `${market.playerWhite?.displayName || formatAddress(market.playerWhite?.address || "")} wins`;
+			case "black": 
+				return `${market.playerBlack?.displayName || formatAddress(market.playerBlack?.address || "")} wins`;
+			case "draw": 
+				return "Draw";
 		}
 	};
 
@@ -86,7 +89,13 @@ export function BettingInterface({
 					<h3 className="font-semibold text-text-primary mb-1">Betting Closed</h3>
 					<p className="text-sm text-text-tertiary">
 						{market.status === "resolved" 
-							? `This market has been resolved. ${market.resolvedOutcome === "white" ? "White" : market.resolvedOutcome === "black" ? "Black" : "Draw"} won.`
+							? `This market has been resolved. ${
+								market.resolvedOutcome === "white" 
+									? market.playerWhite?.displayName || formatAddress(market.playerWhite?.address || "")
+									: market.resolvedOutcome === "black"
+										? market.playerBlack?.displayName || formatAddress(market.playerBlack?.address || "")
+										: "Draw"
+							} won.`
 							: "Betting is no longer available for this market."
 						}
 					</p>
@@ -125,30 +134,6 @@ export function BettingInterface({
 			{/* Betting Panel */}
 			{activeOutcome && outcomeData && (
 				<div className="p-4">
-					{/* Yes/No Toggle */}
-					<div className="flex gap-2 mb-4">
-						<button
-							onClick={() => setActiveSide("yes")}
-							className={`flex-1 py-3 rounded-lg font-semibold transition-all ${
-								activeSide === "yes"
-									? "bg-yes text-dark-500"
-									: "bg-dark-300 text-text-secondary hover:bg-dark-100"
-							}`}
-						>
-							Yes {(outcomeData.yesPrice * 100).toFixed(0)}¢
-						</button>
-						<button
-							onClick={() => setActiveSide("no")}
-							className={`flex-1 py-3 rounded-lg font-semibold transition-all ${
-								activeSide === "no"
-									? "bg-no text-white"
-									: "bg-dark-300 text-text-secondary hover:bg-dark-100"
-							}`}
-						>
-							No {(outcomeData.noPrice * 100).toFixed(0)}¢
-						</button>
-					</div>
-
 					{/* Amount Input */}
 					<div className="mb-4">
 						<label className="text-sm font-medium text-text-secondary mb-2 block">Amount</label>
@@ -208,10 +193,12 @@ export function BettingInterface({
 						<button
 							onClick={handleSubmit}
 							disabled={!amount || parseFloat(amount) <= 0 || isSubmitting || isLoading}
-							className={`w-full py-4 rounded-lg font-semibold text-lg transition-all ${
-								activeSide === "yes"
-									? "bg-yes hover:bg-yes-hover text-dark-500 disabled:opacity-50"
-									: "bg-no hover:bg-no-hover text-white disabled:opacity-50"
+							className={`w-full py-4 rounded-lg font-semibold text-lg transition-all disabled:opacity-50 ${
+								activeOutcome === "white"
+									? "bg-yes hover:bg-yes-hover text-dark-500"
+									: activeOutcome === "black"
+										? "bg-no hover:bg-no-hover text-white"
+										: "bg-blue-500 hover:bg-blue-600 text-white"
 							}`}
 						>
 							{isSubmitting ? (
@@ -223,7 +210,7 @@ export function BettingInterface({
 									Placing Bet...
 								</span>
 							) : (
-								`Buy ${activeSide === "yes" ? "Yes" : "No"} for ${formatCurrency(parseFloat(amount) || 0)}`
+								`Bet on ${outcomeLabel(activeOutcome)} for ${formatCurrency(parseFloat(amount) || 0)}`
 							)}
 						</button>
 					) : (

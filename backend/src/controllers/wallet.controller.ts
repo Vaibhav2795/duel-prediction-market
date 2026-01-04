@@ -80,3 +80,50 @@ export async function listUserWallets(req: Request, res: Response): Promise<void
   }
 }
 
+/**
+ * Signs a transaction hash using the user's Movement wallet
+ * POST /api/wallet/sign
+ */
+export async function signTransaction(req: Request, res: Response): Promise<void> {
+  try {
+    const privyUserId = req.privyUserId;
+
+    if (!privyUserId) {
+      res.status(401).json({ error: 'User not authenticated' });
+      return;
+    }
+
+    const { walletId, hash } = req.body;
+
+    if (!walletId || !hash) {
+      res.status(400).json({ error: 'Missing required fields: walletId and hash' });
+      return;
+    }
+
+    console.log('✍️ Signing transaction hash for wallet:', walletId);
+
+    // Verify the wallet belongs to the user
+    const userWallets = await privyService.getUserWallets(privyUserId);
+    const wallet = userWallets.find(w => w.walletId === walletId);
+
+    if (!wallet) {
+      res.status(403).json({ error: 'Wallet does not belong to user' });
+      return;
+    }
+
+    // Sign the transaction hash
+    const signature = await privyService.rawSign(walletId, hash);
+
+    res.json({
+      success: true,
+      signature,
+    });
+  } catch (error: any) {
+    console.error('❌ Error signing transaction:', error);
+    res.status(500).json({
+      error: 'Failed to sign transaction',
+      message: error.message,
+    });
+  }
+}
+
