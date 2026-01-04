@@ -91,6 +91,8 @@ export async function checkEscrowStoreExists(
   }
 }
 
+// Note: getAccountBalance is exported from @/config/aptos
+// Keeping this for backward compatibility but prefer using from config
 export async function getAccountBalance(
   accountAddress: string
 ): Promise<number> {

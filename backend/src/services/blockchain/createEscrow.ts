@@ -1,3 +1,4 @@
+import { Account } from "@aptos-labs/ts-sdk"
 import { aptos, MODULE_ADDRESS, waitForTransaction } from "@/config/aptos"
 import { CreateEscrowParams } from "./escrow.types"
 import {
@@ -6,6 +7,8 @@ import {
   handleCreateEscrowError,
   initializeEscrow,
 } from "./escrow.utils"
+
+const ESCROW_MODULE = `${MODULE_ADDRESS}::escrow`
 
 export async function createEscrow({
   matchId,
@@ -21,8 +24,8 @@ export async function createEscrow({
   const adminAccount = createAccountFromPrivateKey(privateKey)
   const adminAddress = adminAccount.accountAddress.toString()
 
+  // Check if EscrowStore exists before proceeding
   const storeExists = await checkEscrowStoreExists(adminAddress)
-
   if (!storeExists) {
     try {
       await initializeEscrow(adminAccount)
@@ -34,7 +37,7 @@ export async function createEscrow({
   const transaction = await aptos.transaction.build.simple({
     sender: adminAccount.accountAddress,
     data: {
-      function: `${MODULE_ADDRESS}::escrow::create_escrow`,
+      function: `${ESCROW_MODULE}::create_escrow`,
       functionArguments: [matchId, player1, player2, amount],
     },
   })

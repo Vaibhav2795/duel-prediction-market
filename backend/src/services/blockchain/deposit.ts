@@ -1,5 +1,7 @@
 import { Account } from "@aptos-labs/ts-sdk"
-import { aptos, MODULE_ADDRESS, waitForTransaction } from "@/config/aptos"
+import { aptos, MODULE_ADDRESS, waitForTransaction, getAccountBalance } from "@/config/aptos"
+import { DepositParams } from "./escrow.types"
+import { createAccountFromPrivateKey } from "./escrow.utils"
 
 const ESCROW_MODULE = `${MODULE_ADDRESS}::escrow`
 
@@ -7,13 +9,20 @@ export async function deposit({
   player,
   adminAddress,
   matchId,
-}: {
-  player: Account
-  adminAddress: string
-  matchId: number
-}): Promise<string> {
+}: DepositParams): Promise<string> {
+  // Player should be a private key string that we convert to Account
+  if (!player || typeof player !== "string") {
+    throw new Error("Player private key is required for deposit")
+  }
+
+  const playerAccount = createAccountFromPrivateKey(player)
+
+  // Optional: Check balance before depositing
+  const balance = await getAccountBalance(playerAccount.accountAddress.toString())
+  console.log(`Player balance: ${balance}`)
+
   const transaction = await aptos.transaction.build.simple({
-    sender: player.accountAddress,
+    sender: playerAccount.accountAddress,
     data: {
       function: `${ESCROW_MODULE}::deposit`,
       functionArguments: [adminAddress, matchId],
@@ -21,7 +30,7 @@ export async function deposit({
   })
 
   const signature = aptos.transaction.sign({
-    signer: player,
+    signer: playerAccount,
     transaction,
   })
 
