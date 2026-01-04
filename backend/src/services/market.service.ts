@@ -12,119 +12,149 @@ class MarketService {
     // Determine market status from match status
     let marketStatus: MarketStatus = "active";
     if (match.status === "FINISHED") {
-      marketStatus = "resolved";
-    } else if (match.status === "CANCELLED") {
-      marketStatus = "resolved"; // Treat cancelled as resolved for now
-    } else if (match.status === "LIVE") {
-      marketStatus = "active";
-    } else if (match.status === "SCHEDULED") {
-      const now = new Date();
-      const scheduledTime = new Date(match.scheduledAt);
-      const timeUntilMatch = scheduledTime.getTime() - now.getTime();
-      const hoursUntilMatch = timeUntilMatch / (1000 * 60 * 60);
-      
-      // "Ending Soon" means match is scheduled within 24 hours (but not expired)
-      if (timeUntilMatch > 0 && hoursUntilMatch <= 24) {
-        marketStatus = "ended"; // This will display as "Ending Soon" in the UI
-      } else if (timeUntilMatch <= 0) {
-        // Match time has passed but not started - exclude from markets
-        // Return null to filter this out (will be handled in getMarkets)
-        return null as any;
-      } else {
-        marketStatus = "active";
-      }
-    }
+		marketStatus = "resolved";
+	} else if (match.status === "CANCELLED") {
+		marketStatus = "resolved"; // Treat cancelled as resolved for now
+	} else if (match.status === "LIVE") {
+		marketStatus = "active";
+		// For LIVE matches, check if join window is still open
+		const now = new Date();
+		if (
+			match.joinWindowEndsAt &&
+			match.joinWindowEndsAt < now &&
+			!match.gameStartedAt
+		) {
+			// Join window expired but game hasn't started - will be cancelled by worker
+			marketStatus = "active"; // Still show as active until cancelled
+		}
+	} else if (match.status === "SCHEDULED") {
+		const now = new Date();
+		const scheduledTime = new Date(match.scheduledAt);
+		const timeUntilMatch = scheduledTime.getTime() - now.getTime();
+		const hoursUntilMatch = timeUntilMatch / (1000 * 60 * 60);
 
-    // Determine category based on stake amount
-    let category: MarketCategory = "casual";
-    if (match.stakeAmount >= 100) {
-      category = "tournament";
-    } else if (match.stakeAmount >= 50) {
-      category = "competitive";
-    } else if (match.status === "LIVE") {
-      category = "live";
-    }
+		// "Ending Soon" means match is scheduled within 24 hours (but not expired)
+		if (timeUntilMatch > 0 && hoursUntilMatch <= 24) {
+			marketStatus = "ended"; // This will display as "Ending Soon" in the UI
+		} else if (timeUntilMatch <= 0) {
+			// Match time has passed but not transitioned to LIVE yet - exclude from markets
+			// The worker will transition it to LIVE soon, so filter it out for now
+			return null as any;
+		} else {
+			marketStatus = "active";
+		}
+	}
 
-    // Get game state from room or default
-    const gameState = room?.gameState || "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
-    
-    // Create outcomes with default probabilities (can be enhanced with real betting data)
-    const whiteProb = 33;
-    const blackProb = 33;
-    const drawProb = 34;
+	// Determine category based on stake amount
+	let category: MarketCategory = "casual";
+	if (match.stakeAmount >= 100) {
+		category = "tournament";
+	} else if (match.stakeAmount >= 50) {
+		category = "competitive";
+	} else if (match.status === "LIVE") {
+		category = "live";
+	}
 
-    const outcomes: OutcomeData[] = [
-      {
-        outcome: "white",
-        probability: whiteProb,
-        volume: 0, // TODO: Get from betting data
-        yesPrice: whiteProb / 100,
-        noPrice: 1 - whiteProb / 100,
-      },
-      {
-        outcome: "black",
-        probability: blackProb,
-        volume: 0, // TODO: Get from betting data
-        yesPrice: blackProb / 100,
-        noPrice: 1 - blackProb / 100,
-      },
-      {
-        outcome: "draw",
-        probability: drawProb,
-        volume: 0, // TODO: Get from betting data
-        yesPrice: drawProb / 100,
-        noPrice: 1 - drawProb / 100,
-      },
-    ];
+	// Get game state from room or default
+	const gameState =
+		room?.gameState ||
+		"rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
 
-    // Determine resolved outcome if match is finished
-    let resolvedOutcome: "white" | "black" | "draw" | undefined;
-    if (match.status === "FINISHED" && match.result?.winner) {
-      resolvedOutcome = match.result.winner;
-    }
+	// Create outcomes with default probabilities (can be enhanced with real betting data)
+	const whiteProb = 33;
+	const blackProb = 33;
+	const drawProb = 34;
 
-    // Convert match createdAt to Date if it's a string
-    const createdAtDate = match.createdAt instanceof Date 
-      ? match.createdAt 
-      : match.createdAt 
-        ? new Date(match.createdAt) 
-        : new Date();
+	const outcomes: OutcomeData[] = [
+		{
+			outcome: "white",
+			probability: whiteProb,
+			volume: 0, // TODO: Get from betting data
+			yesPrice: whiteProb / 100,
+			noPrice: 1 - whiteProb / 100
+		},
+		{
+			outcome: "black",
+			probability: blackProb,
+			volume: 0, // TODO: Get from betting data
+			yesPrice: blackProb / 100,
+			noPrice: 1 - blackProb / 100
+		},
+		{
+			outcome: "draw",
+			probability: drawProb,
+			volume: 0, // TODO: Get from betting data
+			yesPrice: drawProb / 100,
+			noPrice: 1 - drawProb / 100
+		}
+	];
 
-    return {
-      id: matchId,
-      title: `${match.player1.name} vs ${match.player2.name}`,
-      description: `Chess match between ${match.player1.name} (White) and ${match.player2.name} (Black). Stake: $${match.stakeAmount.toFixed(2)}`,
-      room: {
-        id: matchId,
-        entryFee: match.stakeAmount,
-        currency: "USD",
-        players: room?.players || [],
-        gameState,
-        status: match.status === "LIVE" ? "active" : match.status === "FINISHED" ? "finished" : "waiting",
-        currentTurn: room?.currentTurn || "white",
-        createdAt: createdAtDate,
-      },
-      outcomes,
-      totalVolume: 0, // TODO: Get from betting data
-      status: marketStatus,
-      category,
-      createdAt: createdAtDate,
-      endTime: match.status === "LIVE" 
-        ? undefined 
-        : (match.scheduledAt instanceof Date ? match.scheduledAt : new Date(match.scheduledAt)),
-      resolvedAt: match.status === "FINISHED" && match.result?.finishedAt 
-        ? (match.result.finishedAt instanceof Date ? match.result.finishedAt : new Date(match.result.finishedAt))
-        : undefined,
-      resolvedOutcome,
-      playerWhite: {
-        address: match.player1.wallet,
-        displayName: match.player1.name,
-      },
-      playerBlack: {
-        address: match.player2.wallet,
-        displayName: match.player2.name,
-      },
-    };
+	// Determine resolved outcome if match is finished
+	let resolvedOutcome: "white" | "black" | "draw" | undefined;
+	if (match.status === "FINISHED" && match.result?.winner) {
+		resolvedOutcome = match.result.winner;
+	}
+
+	// Convert match createdAt to Date if it's a string
+	const createdAtDate =
+		match.createdAt instanceof Date
+			? match.createdAt
+			: match.createdAt
+			? new Date(match.createdAt)
+			: new Date();
+
+	return {
+		id: matchId,
+		title: `${match.player1.name} vs ${match.player2.name}`,
+		description: `Chess match between ${match.player1.name} (White) and ${
+			match.player2.name
+		} (Black). Stake: $${match.stakeAmount.toFixed(2)}`,
+		room: {
+			id: matchId,
+			entryFee: match.stakeAmount,
+			currency: "USD",
+			players: room?.players || [],
+			gameState,
+			status:
+				match.status === "LIVE"
+					? "active"
+					: match.status === "FINISHED"
+					? "finished"
+					: "waiting",
+			currentTurn: room?.currentTurn || "white",
+			createdAt: createdAtDate
+		},
+		outcomes,
+		totalVolume: 0, // TODO: Get from betting data
+		status: marketStatus,
+		category,
+		createdAt: createdAtDate,
+		endTime:
+			match.status === "LIVE"
+				? match.joinWindowEndsAt instanceof Date
+					? match.joinWindowEndsAt
+					: match.joinWindowEndsAt
+					? new Date(match.joinWindowEndsAt)
+					: undefined
+				: match.scheduledAt instanceof Date
+				? match.scheduledAt
+				: new Date(match.scheduledAt),
+		resolvedAt:
+			match.status === "FINISHED" && match.result?.finishedAt
+				? match.result.finishedAt instanceof Date
+					? match.result.finishedAt
+					: new Date(match.result.finishedAt)
+				: undefined,
+		resolvedOutcome,
+		playerWhite: {
+			address: match.player1.wallet,
+			displayName: match.player1.name
+		},
+		playerBlack: {
+			address: match.player2.wallet,
+			displayName: match.player2.name
+		}
+	};
   }
 
   // Get all markets from matches
@@ -154,10 +184,11 @@ class MarketService {
       // Find if there's a duplicate (same players, different match)
       const duplicateIndex = self.findIndex((m) => {
         if (m._id.toString() === match._id.toString()) return false;
-        const samePlayers = (
-          (m.player1.wallet === match.player1.wallet && m.player2.wallet === match.player2.wallet) ||
-          (m.player1.wallet === match.player2.wallet && m.player2.wallet === match.player1.wallet)
-        );
+        const samePlayers =
+			(m.player1?.wallet === match.player1?.wallet &&
+				m.player2?.wallet === match.player2?.wallet) ||
+			(m.player1?.wallet === match.player2?.wallet &&
+				m.player2?.wallet === match.player1?.wallet);
         return samePlayers;
       });
       
@@ -263,7 +294,9 @@ class MarketService {
       .sort({ createdAt: -1 })
       .limit(limit);
     
-    return matches.map(match => this.matchToMarket(match));
+    return matches
+		.map(match => this.matchToMarket(match))
+		.filter((market): market is Market => market !== null);
   }
 
   // Get markets ending soon
@@ -276,7 +309,9 @@ class MarketService {
       .sort({ scheduledAt: 1 })
       .limit(limit);
     
-    return matches.map(match => this.matchToMarket(match));
+    return matches
+		.map(match => this.matchToMarket(match))
+		.filter((market): market is Market => market !== null);
   }
 
   // Get newly created markets
@@ -285,7 +320,9 @@ class MarketService {
       .sort({ createdAt: -1 })
       .limit(limit);
     
-    return matches.map(match => this.matchToMarket(match));
+    return matches
+		.map(match => this.matchToMarket(match))
+		.filter((market): market is Market => market !== null);
   }
 }
 

@@ -115,14 +115,18 @@ export interface MarketStats {
 }
 
 export interface LiveMatch {
-  id: string // matchId
-  stakeAmount: number
-  players: Player[]
-  gameState: string // FEN
-  status: "waiting" | "active" | "finished"
-  currentTurn: "white" | "black"
-  createdAt: Date
-  winner?: "white" | "black" | "draw"
+	id: string; // matchId
+	stakeAmount: number;
+	players: Player[];
+	gameState: string; // FEN
+	status: "waiting" | "active" | "finished";
+	currentTurn: "white" | "black";
+	createdAt: Date;
+	winner?: "white" | "black" | "draw";
+	whiteTimeRemaining?: number; // milliseconds
+	blackTimeRemaining?: number; // milliseconds
+	joinWindowEndsAt?: Date;
+	gameStartedAt?: Date;
 }
 
 export interface GameMove {

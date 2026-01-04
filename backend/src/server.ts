@@ -4,6 +4,7 @@ import http from "http"
 import app from "./app.js"
 import { initSockets } from "./sockets/index.js"
 import { connectDatabase, disconnectDatabase } from "./config/database.js"
+import { matchStatusWorker } from "./workers/matchStatusWorker.js"
 
 const PORT = process.env.PORT ? parseInt(process.env.PORT, 10) : 3000
 
@@ -15,6 +16,10 @@ initSockets(server)
 const startServer = async () => {
   try {
     await connectDatabase()
+
+    // Start match status worker
+    matchStatusWorker.start()
+    console.log("✅ Match status worker started")
 
     server.listen(PORT, () => {
       console.log(`🚀 Server running on port ${PORT}`)
@@ -28,6 +33,7 @@ const startServer = async () => {
 // Graceful shutdown
 process.on("SIGTERM", async () => {
   console.log("SIGTERM signal received: closing HTTP server")
+  matchStatusWorker.stop()
   server.close(async () => {
     await disconnectDatabase()
     process.exit(0)
@@ -36,6 +42,7 @@ process.on("SIGTERM", async () => {
 
 process.on("SIGINT", async () => {
   console.log("SIGINT signal received: closing HTTP server")
+  matchStatusWorker.stop()
   server.close(async () => {
     await disconnectDatabase()
     process.exit(0)

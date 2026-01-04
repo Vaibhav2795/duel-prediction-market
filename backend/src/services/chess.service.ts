@@ -3,6 +3,7 @@ import { Chess } from "chess.js"
 import type { GameMove } from "@/types/game"
 import { roomService } from "@/services/room.service"
 import { matchResultService } from "./match.result.service"
+import { matchStatusWorker } from "@/workers/matchStatusWorker"
 import GameMoveModel from "@/models/GameMove"
 
 class ChessService {
@@ -69,12 +70,25 @@ class ChessService {
     if (isGameOver && winner) {
       roomService.finishRoom(matchId, winner)
 
+      // Stop the game timer
+      matchStatusWorker.stopGameTimer(matchId)
+
       await matchResultService.persistResult(matchId, winner, fen)
+
+      // Update match status to FINISHED
+      const Match = (await import("@/models/Match")).default
+      await Match.findByIdAndUpdate(matchId, {
+        status: "FINISHED",
+        "result.winner": winner,
+        "result.finalFen": fen,
+        "result.finishedAt": new Date(),
+      })
 
       global.io?.to(matchId).emit("match_finished", {
         matchId,
         winner,
         finalFen: fen,
+        reason: "game_over",
       })
     }
 
