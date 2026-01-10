@@ -14,7 +14,6 @@ import UserRegistration from './components/UserRegistration';
 import { SpectatorView } from './components/SpectatorView';
 import { getMatchById } from './services/matchService';
 import { socketService } from './services/socketService';
-import { useMovementWallet } from './hooks/useMovementWallet';
 import * as bettingService from './services/bettingService';
 import type { Match } from './services/matchService';
 import type { User } from './services/userService';
@@ -24,7 +23,6 @@ function AppContent() {
     const navigate = useNavigate();
     const location = useLocation();
     const { ready, authenticated, user, login, logout } = usePrivy();
-    const { movementWallet, isMovementWallet, getAddress: getMovementAddress } = useMovementWallet();
     
     // Player state
     const [playerAddress, setPlayerAddress] = useState<string>('');
@@ -59,21 +57,11 @@ function AppContent() {
     useEffect(() => {
         if (ready && authenticated && user) {
             let address = '';
-
-            if (isMovementWallet && movementWallet) {
-                const movementAddress = getMovementAddress();
-                if (movementAddress) {
-                    address = movementAddress;
-                }
-            }
-            
-            if (!address) {
-                const wallet = user.wallet;
-                if (wallet?.address) {
-                    address = wallet.address;
-                } else {
-                    address = user.id || '';
-                }
+            const wallet = user.wallet;
+            if (wallet?.address) {
+                address = wallet.address;
+            } else {
+                address = user.id || '';
             }
 
             setPlayerAddress(address);
@@ -106,7 +94,7 @@ function AppContent() {
             setRegisteredUser(null);
             setShowUserRegistration(false);
         }
-    }, [ready, authenticated, user, isMovementWallet, movementWallet, getMovementAddress]);
+    }, [ready, authenticated, user]);
 
     // Fetch markets data
     const fetchMarkets = useCallback(async (force = false) => {

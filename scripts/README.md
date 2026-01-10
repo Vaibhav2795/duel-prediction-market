@@ -1,6 +1,6 @@
 # Contract Interaction Scripts
 
-This folder contains TypeScript scripts to interact with the Chess Escrow and Prediction Market contracts deployed on the Movement Network.
+This folder contains TypeScript scripts to interact with the Chess Escrow and Prediction Market contracts.
 
 ## Setup
 
@@ -20,8 +20,6 @@ export PRIVATE_KEY="your_private_key_here"
 
 - **Module Address**: `0xed101e6c098f47d3a9ff8cf2dae4331fc2a55848502942246878b2ab63b90b4d`
 - **Deployment Transaction**: `0x76223771c7f1720f65b1d1300659d101867676a996e225406b6aa10292eb258d`
-- **Network**: Movement Network Testnet
-- **Explorer**: https://explorer.movementnetwork.xyz
 
 ## Chess Escrow Contract
 
@@ -200,11 +198,7 @@ import { createMarket, bet } from "./prediction-market.js";
 
 ## Network Configuration
 
-The scripts are configured to use Movement Network Testnet:
-- Fullnode: `https://testnet.movementnetwork.xyz/v1`
-- Faucet: `https://faucet.testnet.movementnetwork.xyz/`
-
-To change the network, modify `config.ts`.
+To change the network configuration, modify `config.ts`.
 
 ## Notes
 

@@ -51,7 +51,6 @@ export async function initializePredictionMarket(account: Account) {
     });
 
     console.log(`Transaction submitted: ${committedTxn.hash}`);
-    console.log(`Explorer: https://explorer.movementnetwork.xyz/txn/${committedTxn.hash}?network=custom`);
     
     await waitForTransaction(committedTxn.hash);
     return committedTxn.hash;
@@ -88,7 +87,6 @@ export async function createMarket(
     });
 
     console.log(`Transaction submitted: ${committedTxn.hash}`);
-    console.log(`Explorer: https://explorer.movementnetwork.xyz/txn/${committedTxn.hash}?network=custom`);
     
     await waitForTransaction(committedTxn.hash);
     return committedTxn.hash;
@@ -130,7 +128,6 @@ export async function bet(
     });
 
     console.log(`Transaction submitted: ${committedTxn.hash}`);
-    console.log(`Explorer: https://explorer.movementnetwork.xyz/txn/${committedTxn.hash}?network=custom`);
     
     await waitForTransaction(committedTxn.hash);
     return committedTxn.hash;
@@ -165,7 +162,6 @@ export async function resolveMarket(
     });
 
     console.log(`Transaction submitted: ${committedTxn.hash}`);
-    console.log(`Explorer: https://explorer.movementnetwork.xyz/txn/${committedTxn.hash}?network=custom`);
     
     await waitForTransaction(committedTxn.hash);
     return committedTxn.hash;
@@ -203,7 +199,6 @@ export async function claimRewards(
     });
 
     console.log(`Transaction submitted: ${committedTxn.hash}`);
-    console.log(`Explorer: https://explorer.movementnetwork.xyz/txn/${committedTxn.hash}?network=custom`);
     
     await waitForTransaction(committedTxn.hash);
 
