@@ -39,7 +39,6 @@ export async function initializeEscrow(account: Account) {
     });
 
     console.log(`Transaction submitted: ${committedTxn.hash}`);
-    console.log(`Explorer: https://explorer.movementnetwork.xyz/txn/${committedTxn.hash}?network=custom`);
     
     await waitForTransaction(committedTxn.hash);
     return committedTxn.hash;
@@ -89,7 +88,6 @@ export async function createEscrow(
     });
 
     console.log(`Transaction submitted: ${committedTxn.hash}`);
-    console.log(`Explorer: https://explorer.movementnetwork.xyz/txn/${committedTxn.hash}?network=custom`);
     
     try {
         await waitForTransaction(committedTxn.hash);
@@ -171,7 +169,6 @@ export async function deposit(
     });
 
     console.log(`Transaction submitted: ${committedTxn.hash}`);
-    console.log(`Explorer: https://explorer.movementnetwork.xyz/txn/${committedTxn.hash}?network=custom`);
     
     try {
         await waitForTransaction(committedTxn.hash);
@@ -216,7 +213,6 @@ export async function resolveWin(
     });
 
     console.log(`Transaction submitted: ${committedTxn.hash}`);
-    console.log(`Explorer: https://explorer.movementnetwork.xyz/txn/${committedTxn.hash}?network=custom`);
     
     try {
         await waitForTransaction(committedTxn.hash);
@@ -262,7 +258,6 @@ export async function resolveDraw(
     });
 
     console.log(`Transaction submitted: ${committedTxn.hash}`);
-    console.log(`Explorer: https://explorer.movementnetwork.xyz/txn/${committedTxn.hash}?network=custom`);
     
     try {
         await waitForTransaction(committedTxn.hash);

@@ -8,11 +8,9 @@ export const DEPLOYMENT_TX_HASH = "0x76223771c7f1720f65b1d1300659d101867676a996e
 export const ADMIN_ADDRESS = "0xed101e6c098f47d3a9ff8cf2dae4331fc2a55848502942246878b2ab63b90b4d";
 export const USER2_ADDRESS = "0x2cd9c41f929c001a11e57de6b8a7d607cb1f1aca7b8d0435a393f10ee39dbcfa";
 
-// Network configuration for Movement Network
+// Network configuration
 export const config = new AptosConfig({
-    network: Network.CUSTOM,
-    fullnode: 'https://testnet.movementnetwork.xyz/v1',
-    faucet: 'https://faucet.testnet.movementnetwork.xyz/',
+    network: Network.TESTNET,
 });
 
 // Initialize the Aptos client
@@ -99,8 +97,8 @@ export async function waitForTransaction(transactionHash: string) {
             payload: response.payload,
         }, null, 2));
         
-        console.error("\n🔗 Explorer Link:");
-        console.error(`  https://explorer.movementnetwork.xyz/txn/${transactionHash}?network=custom`);
+        console.error("\n🔗 Transaction Hash:");
+        console.error(`  ${transactionHash}`);
         console.error("=".repeat(80) + "\n");
         
         const error: any = new Error(`Transaction failed: ${vmStatus}`);
