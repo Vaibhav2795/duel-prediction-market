@@ -1,0 +1,32 @@
+Deploying Duel system contracts on mantle (5003)...
+Deployer: 0xc4030A43e90c1d4158678EEc5DfCFDB47bbDaFb1
+
+=== Step 1: Deploying Duel Token ===
+✓ Duel Token deployed at: 0x6EE01751A188A1b25879d4A7C46991D7f7c2d178 (1 confirmations)
+
+=== Step 2: Deploying PredictionMarket ===
+✓ PredictionMarket deployed at: 0x310e578c557514aae459Fc6FaFF2f94862657126 (1 confirmations)
+
+=== Step 3: Deploying ChessEscrow ===
+✓ ChessEscrow deployed at: 0x154057621A32A031c89Cc5c06A255F88970C3462 (1 confirmations)
+
+=== Deployment Summary ===
+Duel Token: 0x6EE01751A188A1b25879d4A7C46991D7f7c2d178
+PredictionMarket: 0x310e578c557514aae459Fc6FaFF2f94862657126
+ChessEscrow: 0x154057621A32A031c89Cc5c06A255F88970C3462
+
+All contracts deployed successfully!
+
+=== JSON Output ===
+{
+  "network": {
+    "name": "mantle",
+    "chainId": "5003"
+  },
+  "deployer": "0xc4030A43e90c1d4158678EEc5DfCFDB47bbDaFb1",
+  "contracts": {
+    "duelToken": "0x6EE01751A188A1b25879d4A7C46991D7f7c2d178",
+    "predictionMarket": "0x310e578c557514aae459Fc6FaFF2f94862657126",
+    "chessEscrow": "0x154057621A32A031c89Cc5c06A255F88970C3462"
+  }
+}
