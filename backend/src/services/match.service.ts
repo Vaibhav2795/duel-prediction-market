@@ -50,8 +50,15 @@ class MatchService {
       if (!matchData) {
         throw new Error("Failed to create match")
       }
+
+      // Use the numeric id field instead of MongoDB's _id
+      const numericMatchId = matchData.id
+      if (!numericMatchId) {
+        throw new Error("Failed to generate numeric match ID")
+      }
+
       const escrowHash = await createEscrow({
-        matchId: matchData.id,
+        matchId: numericMatchId,
         player1: player1?.wallet,
         player2: player2?.wallet,
         amount: stakeAmount,
@@ -99,18 +106,26 @@ class MatchService {
   }
 
   async getMatchById(matchId: string) {
-    return Match.findById(matchId)
+    // Try to find by numeric id first, then fall back to MongoDB _id
+    const numericId = Number(matchId)
+    const match = !isNaN(numericId)
+      ? await Match.findOne({ id: numericId })
+      : null
+    return match || (await Match.findById(matchId))
   }
 
   async getMatchDetails(matchId: string) {
-    const match = await Match.findById(matchId)
+    // Try to find by numeric id first, then fall back to MongoDB _id
+    const match =
+      (await Match.findOne({ id: Number(matchId) })) ||
+      (await Match.findById(matchId))
 
     if (!match) {
       return null
     }
 
     return {
-      id: match._id,
+      id: match.id || match._id,
       player1: match.player1,
       player2: match.player2,
       scheduledAt: match.scheduledAt,
@@ -122,19 +137,24 @@ class MatchService {
   }
 
   async getMatchMoves(matchId: string) {
-    // Verify match exists
-    const match = await Match.findById(matchId)
+    // Try to find by numeric id first, then fall back to MongoDB _id
+    const match =
+      (await Match.findOne({ id: Number(matchId) })) ||
+      (await Match.findById(matchId))
     if (!match) {
       return null
     }
 
+    // Use the numeric id or _id for finding moves
+    const actualMatchId = match.id?.toString() || match._id.toString()
+
     // Get moves for this match (gameId is set to matchId in chess service)
-    const moves = await GameMove.find({ gameId: matchId })
+    const moves = await GameMove.find({ gameId: actualMatchId })
       .sort({ moveNumber: 1 })
       .select("-__v")
 
     return {
-      matchId,
+      matchId: actualMatchId,
       moves: moves.map((m) => ({
         moveNumber: m.moveNumber,
         san: m.san,
