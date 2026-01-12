@@ -19,7 +19,9 @@ export async function createMatch(req: Request, res: Response) {
     })
 
     return res.status(201).json({
-      id: match._id,
+      id: match.matchId?.toString() || match._id.toString(),
+      matchId: match.matchId,
+      socketId: match._id.toString(),
       status: match.status,
       scheduledAt: match.scheduledAt,
     })
@@ -61,12 +63,14 @@ export async function listMatches(req: Request, res: Response) {
 
     return res.json({
       data: result.matches.map((m) => ({
-        id: m._id,
+        id: m.matchId?.toString() || m._id.toString(),
+        matchId: m.matchId,
         player1: m.player1,
         player2: m.player2,
         scheduledAt: m.scheduledAt,
         stakeAmount: m.stakeAmount,
         status: m.status,
+        socketId: m._id.toString(),
       })),
       pagination: result.pagination,
     })
@@ -106,6 +110,55 @@ export async function getMatchMoves(req: Request, res: Response) {
     return res.json(result)
   } catch (err) {
     console.error("Get match moves failed:", err)
+    return res.status(500).json({ error: "Internal server error" })
+  }
+}
+
+export async function updateMatchHashes(req: Request, res: Response) {
+  try {
+    const { id } = req.params
+    const { escrowHash, marketHash } = req.body
+
+    if (!escrowHash && !marketHash) {
+      return res
+        .status(400)
+        .json({ error: "At least one hash must be provided" })
+    }
+
+    const match = await matchService.updateMatchHashes(
+      id,
+      escrowHash,
+      marketHash
+    )
+
+    return res.json({
+      id: match.matchId?.toString() || match._id.toString(),
+      matchId: match.matchId,
+      socketId: match._id.toString(),
+      escrowHash: match.escrowHash,
+      marketHash: match.marketHash,
+    })
+  } catch (err: any) {
+    if (err.message === "Match not found") {
+      return res.status(404).json({ error: err.message })
+    }
+    console.error("Update match hashes failed:", err)
+    return res.status(500).json({ error: "Internal server error" })
+  }
+}
+
+export async function deleteMatch(req: Request, res: Response) {
+  try {
+    const { id } = req.params
+
+    await matchService.deleteMatch(id)
+
+    return res.json({ success: true, message: "Match deleted successfully" })
+  } catch (err: any) {
+    if (err.message === "Match not found") {
+      return res.status(404).json({ error: err.message })
+    }
+    console.error("Delete match failed:", err)
     return res.status(500).json({ error: "Internal server error" })
   }
 }

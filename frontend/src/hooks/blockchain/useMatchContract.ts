@@ -1,23 +1,21 @@
-import { useWalletClient, usePublicClient } from "wagmi";
-import { PredictionMarketABI } from "../../../contracts/PredictionMarketABI";
-import { Address } from "./types";
+import { useWalletClient, usePublicClient } from "wagmi"
+import { type Abi, type Address as ViemAddress } from "viem"
+import { Address } from "./types"
 
-export const CONTRACT_ADDRESS = import.meta.env
-  .VITE_PREDICTION_MARKET_ADDRESS as Address;
+export function useMatchContract(address: Address, abi: Abi) {
+  const { data: wallet } = useWalletClient()
+  const publicClient = usePublicClient()
 
-export function useMatchContract() {
-  const { data: wallet } = useWalletClient();
-  const publicClient = usePublicClient();
-
-  if (!wallet) throw new Error("Wallet not connected");
-  if (!publicClient) throw new Error("Public client not ready");
+  if (!wallet || !publicClient) {
+    return null
+  }
 
   return {
     wallet,
     publicClient,
     contract: {
-      address: CONTRACT_ADDRESS,
-      abi: PredictionMarketABI,
+      address: address as ViemAddress,
+      abi,
     },
-  };
+  }
 }

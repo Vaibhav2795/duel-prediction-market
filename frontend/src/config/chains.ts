@@ -1,17 +1,21 @@
-import { type Chain } from "viem";
+import { type Chain } from "viem"
 
 export const mantleSepolia = {
-  id: 1,
-  name: "Mantle Testnet",
+  id: 5003,
+  name: "Mantle Sepolia Testnet",
   nativeCurrency: { name: "MNT", symbol: "MNT", decimals: 18 },
   rpcUrls: {
     default: {
       http: [
-        "https://mantle-sepolia.g.alchemy.com/v2/6t-67_9ZObtkyunig8Uq4GpmEg49GwxV",
+        "https://mantle-sepolia.g.alchemy.com/v2/sVUSe_hStYmanofM2Ke1gb6JkQuu2PZc",
       ],
     },
   },
   blockExplorers: {
-    default: { name: "Mantel", url: "https://explore.testnet.mantle.xyz" },
+    default: {
+      name: "Mantle Explorer",
+      url: "https://explorer.sepolia.mantle.xyz",
+    },
   },
-} as const satisfies Chain;
+  testnet: true,
+} as const satisfies Chain

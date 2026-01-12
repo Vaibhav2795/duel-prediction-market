@@ -1,11 +1,20 @@
 // hooks/blockchain/useMatchReads.ts
 import { useMatchContract } from "./useMatchContract";
+import { PredictionMarketABI } from "../../../contracts/PredictionMarketABI";
 import { Address, MarketData, Outcome, UserShares } from "./types";
 
+const CONTRACT_ADDRESS = import.meta.env
+  .VITE_PREDICTION_MARKET_ADDRESS as Address;
+
 export function useMatchReads(matchId: number, user?: Address) {
-  const { publicClient, contract } = useMatchContract();
+  const contractData = useMatchContract(CONTRACT_ADDRESS, PredictionMarketABI);
 
   async function getMarket(): Promise<MarketData> {
+    if (!contractData) {
+      throw new Error("Wallet not connected");
+    }
+    const { publicClient, contract } = contractData;
+
     return publicClient.readContract({
       ...contract,
       functionName: "getMarketData",
@@ -14,6 +23,11 @@ export function useMatchReads(matchId: number, user?: Address) {
   }
 
   async function getAllShares(): Promise<UserShares> {
+    if (!contractData) {
+      throw new Error("Wallet not connected");
+    }
+    const { publicClient, contract } = contractData;
+
     return publicClient.readContract({
       ...contract,
       functionName: "getAllShares",
@@ -22,6 +36,11 @@ export function useMatchReads(matchId: number, user?: Address) {
   }
 
   async function canClaim(): Promise<boolean> {
+    if (!contractData) {
+      throw new Error("Wallet not connected");
+    }
+    const { publicClient, contract } = contractData;
+
     return publicClient.readContract({
       ...contract,
       functionName: "canClaim",
@@ -30,6 +49,11 @@ export function useMatchReads(matchId: number, user?: Address) {
   }
 
   async function getPotentialReward(outcome: Outcome): Promise<string> {
+    if (!contractData) {
+      throw new Error("Wallet not connected");
+    }
+    const { publicClient, contract } = contractData;
+
     return publicClient.readContract({
       ...contract,
       functionName: "getPotentialReward",
