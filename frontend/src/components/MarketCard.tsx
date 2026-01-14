@@ -5,7 +5,7 @@ import { formatCurrency, formatTimeRemaining, formatAddress } from "../styles/de
 interface MarketCardProps {
 	market: Market;
 	onClick?: () => void;
-	onQuickBet?: (outcome: Outcome, side: "yes" | "no") => void;
+	onQuickBet?: (outcome: Outcome) => void;
 	compact?: boolean;
 }
 
@@ -137,7 +137,7 @@ export function MarketCard({ market, onClick, onQuickBet, compact = false }: Mar
 					</div>
 					{onQuickBet && market.status === "active" && (
 						<button
-							onClick={(e) => { e.stopPropagation(); onQuickBet("white", "yes"); }}
+							onClick={(e) => { e.stopPropagation(); onQuickBet("white"); }}
 							className="btn btn-yes text-xs px-3 py-1.5"
 						>
 							Bet
@@ -158,7 +158,7 @@ export function MarketCard({ market, onClick, onQuickBet, compact = false }: Mar
 					</div>
 					{onQuickBet && market.status === "active" && (
 						<button
-							onClick={(e) => { e.stopPropagation(); onQuickBet("black", "yes"); }}
+							onClick={(e) => { e.stopPropagation(); onQuickBet("black"); }}
 							className="btn btn-no text-xs px-3 py-1.5"
 						>
 							Bet
@@ -180,7 +180,7 @@ export function MarketCard({ market, onClick, onQuickBet, compact = false }: Mar
 						</div>
 						{onQuickBet && market.status === "active" && (
 							<button
-								onClick={(e) => { e.stopPropagation(); onQuickBet("draw", "yes"); }}
+								onClick={(e) => { e.stopPropagation(); onQuickBet("draw"); }}
 								className="btn btn-secondary text-xs px-3 py-1.5"
 							>
 								Bet

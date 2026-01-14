@@ -115,11 +115,8 @@ function generateBetsForMarket(market: Market): Bet[] {
 	const numBets = Math.floor(Math.random() * 10) + 3;
 	return Array.from({ length: numBets }, (_, i) => {
 		const outcome = (["white", "black", "draw"] as Outcome[])[Math.floor(Math.random() * 3)];
-		const side = Math.random() > 0.3 ? "yes" : "no";
 		const amount = Math.floor(Math.random() * 500) + 10;
-		const price = side === "yes" 
-			? market.outcomes.find(o => o.outcome === outcome)!.yesPrice
-			: market.outcomes.find(o => o.outcome === outcome)!.noPrice;
+		const price = market.outcomes.find(o => o.outcome === outcome)!.yesPrice;
 		
 		return {
 			id: `bet-${market.id}-${i}`,
@@ -129,8 +126,7 @@ function generateBetsForMarket(market: Market): Bet[] {
 			amount,
 			price,
 			potentialPayout: amount / price,
-			createdAt: new Date(Date.now() - Math.random() * 24 * 60 * 60 * 1000),
-			side
+			createdAt: new Date(Date.now() - Math.random() * 24 * 60 * 60 * 1000)
 		};
 	});
 }
@@ -148,12 +144,9 @@ function generateUserPositions(): Position[] {
 	
 	return selectedMarkets.map((market, i) => {
 		const outcome = (["white", "black", "draw"] as Outcome[])[Math.floor(Math.random() * 3)];
-		const side = Math.random() > 0.3 ? "yes" : "no";
 		const shares = Math.floor(Math.random() * 100) + 10;
 		const avgPrice = Math.random() * 0.4 + 0.3;
-		const currentPrice = side === "yes"
-			? market.outcomes.find(o => o.outcome === outcome)!.yesPrice
-			: market.outcomes.find(o => o.outcome === outcome)!.noPrice;
+		const currentPrice = market.outcomes.find(o => o.outcome === outcome)!.yesPrice;
 		const currentValue = shares * currentPrice;
 		const cost = shares * avgPrice;
 		const pnl = currentValue - cost;
@@ -163,7 +156,6 @@ function generateUserPositions(): Position[] {
 			marketId: market.id,
 			userAddress: mockUserAddress,
 			outcome,
-			side,
 			shares,
 			avgPrice,
 			currentValue,
@@ -171,7 +163,7 @@ function generateUserPositions(): Position[] {
 			pnlPercent: (pnl / cost) * 100,
 			isResolved: market.status === "resolved",
 			resolvedPayout: market.status === "resolved" 
-				? (market.resolvedOutcome === outcome && side === "yes") || (market.resolvedOutcome !== outcome && side === "no")
+				? market.resolvedOutcome === outcome
 					? shares
 					: 0
 				: undefined
@@ -223,7 +215,6 @@ export function placeMockBet(
 	marketId: string, 
 	userAddress: string, 
 	outcome: Outcome, 
-	side: "yes" | "no", 
 	amount: number
 ): Bet | null {
 	const market = mockMarkets.find(m => m.id === marketId);
@@ -232,7 +223,7 @@ export function placeMockBet(
 	const outcomeData = market.outcomes.find(o => o.outcome === outcome);
 	if (!outcomeData) return null;
 	
-	const price = side === "yes" ? outcomeData.yesPrice : outcomeData.noPrice;
+	const price = outcomeData.yesPrice;
 	
 	const bet: Bet = {
 		id: `bet-${generateId()}`,
@@ -242,8 +233,7 @@ export function placeMockBet(
 		amount,
 		price,
 		potentialPayout: amount / price,
-		createdAt: new Date(),
-		side
+		createdAt: new Date()
 	};
 	
 	// Store in user bets
@@ -261,7 +251,7 @@ export function placeMockBet(
 	outcomeData.volume += amount;
 	
 	// Slightly adjust probability based on bet (simplified)
-	const adjustment = (amount / 10000) * (side === "yes" ? 1 : -1);
+	const adjustment = amount / 10000;
 	outcomeData.probability = Math.min(95, Math.max(5, outcomeData.probability + adjustment));
 	outcomeData.yesPrice = outcomeData.probability / 100;
 	outcomeData.noPrice = 1 - outcomeData.yesPrice;

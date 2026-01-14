@@ -74,12 +74,11 @@ export async function placeBet(
 	marketId: string,
 	userAddress: string,
 	outcome: Outcome,
-	side: "yes" | "no",
 	amount: number
 ): Promise<{ success: boolean; bet?: Bet; error?: string }> {
 	return fetchApi(`/api/markets/${marketId}/bet`, {
 		method: "POST",
-		body: JSON.stringify({ userAddress, outcome, side, amount }),
+		body: JSON.stringify({ userAddress, outcome, amount }),
 	});
 }
 

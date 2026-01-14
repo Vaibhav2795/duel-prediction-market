@@ -242,20 +242,15 @@ export function PortfolioPage({
 								>
 									<div className="flex items-center justify-between">
 										<div className="flex items-center gap-3">
-											<div className={`w-10 h-10 rounded-lg flex items-center justify-center ${
-												bet.side === "yes" ? "bg-yes-bg text-yes" : "bg-no-bg text-no"
-											}`}>
-												{bet.side === "yes" ? "✓" : "✗"}
+											<div className="w-10 h-10 rounded-lg flex items-center justify-center bg-yes-bg text-yes">
+												✓
 											</div>
 											<div>
 												<div className="font-medium text-text-primary">
 													{market?.title || "Unknown Market"}
 												</div>
 												<div className="text-sm text-text-tertiary">
-													<span className={bet.side === "yes" ? "text-yes" : "text-no"}>
-														{bet.side.toUpperCase()}
-													</span>
-													{" on "}
+													<span className="text-yes">Bet on </span>
 													{outcomeLabel(bet.outcome)}
 													{" @ "}
 													{(bet.price * 100).toFixed(0)}¢
@@ -308,9 +303,7 @@ export function PortfolioPage({
 									<div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
 										<div className="flex items-center gap-4">
 											<div className={`w-12 h-12 rounded-xl flex items-center justify-center flex-shrink-0 ${
-												position.side === "yes" 
-													? position.outcome === "white" ? "bg-yes-bg" : position.outcome === "black" ? "bg-no-bg" : "bg-blue-500/10"
-													: "bg-dark-300"
+												position.outcome === "white" ? "bg-yes-bg" : position.outcome === "black" ? "bg-no-bg" : "bg-blue-500/10"
 											}`}>
 												<span className={`text-lg ${
 													position.outcome === "white" ? "text-yes" :
@@ -324,11 +317,6 @@ export function PortfolioPage({
 													{market?.title || "Unknown Market"}
 												</div>
 												<div className="flex items-center gap-2 text-sm">
-													<span className={`px-2 py-0.5 rounded text-xs font-medium ${
-														position.side === "yes" ? "bg-yes-bg text-yes" : "bg-no-bg text-no"
-													}`}>
-														{position.side.toUpperCase()}
-													</span>
 													<span className="text-text-secondary">{outcomeLabel(position.outcome)}</span>
 													{position.isResolved && (
 														<span className="badge badge-resolved">Resolved</span>

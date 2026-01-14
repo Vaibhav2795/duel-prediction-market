@@ -14,7 +14,7 @@ interface BrowsePageProps {
 	};
 	isLoading?: boolean;
 	onMarketClick: (marketId: string) => void;
-	onQuickBet?: (marketId: string, outcome: "white" | "black" | "draw", side: "yes" | "no") => void;
+	onQuickBet?: (marketId: string, outcome: "white" | "black" | "draw") => void;
 	searchValue?: string;
 	onSearchChange?: (value: string) => void;
 }
@@ -271,7 +271,7 @@ export function BrowsePage({
 								key={market.id}
 								market={market}
 								onClick={() => onMarketClick(market.id)}
-								onQuickBet={onQuickBet ? (outcome, side) => onQuickBet(market.id, outcome, side) : undefined}
+								onQuickBet={onQuickBet ? (outcome) => onQuickBet(market.id, outcome) : undefined}
 							/>
 						))}
 					</div>

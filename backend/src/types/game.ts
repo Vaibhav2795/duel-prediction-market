@@ -81,7 +81,6 @@ export interface Bet {
 	price: number; // Price at time of bet
 	potentialPayout: number;
 	createdAt: Date;
-	side: "yes" | "no"; // Betting for or against the outcome
 }
 
 export interface Position {
@@ -89,7 +88,6 @@ export interface Position {
 	marketId: string;
 	userAddress: string;
 	outcome: Outcome;
-	side: "yes" | "no";
 	shares: number; // Number of shares owned
 	avgPrice: number; // Average buy price
 	currentValue: number;

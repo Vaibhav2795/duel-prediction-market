@@ -35,6 +35,7 @@ import type {
 } from "./types/game"
 import { useWalletBalance } from "./hooks/blockchain/useWalletBalance"
 import { Address } from "./hooks/blockchain/types"
+import { useBetOnMatchOnchain } from "./hooks/useOnchainHooks"
 
 const TOKEN_ADDRESS = import.meta.env.VITE_TOKEN_ADDRESS as Address
 function AppContent() {
@@ -76,6 +77,9 @@ function AppContent() {
     symbol,
     isLoading: isLoadingBalance,
   } = useWalletBalance(TOKEN_ADDRESS)
+
+  // Onchain betting hook
+  const { betOnMatch, isLoading: isBettingOnchain, error: bettingError } = useBetOnMatchOnchain()
 
   console.log({ balance, symbol, isLoadingBalance })
   // Get wallet address from Privy and check user registration
@@ -303,30 +307,52 @@ function AppContent() {
 
   const handlePlaceBet = async (
     outcome: Outcome,
-    side: "yes" | "no",
     amount: number
   ) => {
     if (!currentMarket || !playerAddress) return
 
     try {
-      const result = await bettingService.placeBet(
-        currentMarket.id,
-        playerAddress,
-        outcome,
-        side,
-        amount
-      )
+      // Map outcome to contract format: white -> 1, black -> 2, draw -> 3
+      const outcomeMap: Record<Outcome, 1 | 2 | 3> = {
+        white: 1,
+        black: 2,
+        draw: 3,
+      };
+
+      const contractOutcome = outcomeMap[outcome];
+
+      // Place bet onchain
+      const matchId = parseInt(currentMarket.id);
+      if (isNaN(matchId)) {
+        throw new Error("Invalid market ID");
+      }
+
+      const result = await betOnMatch(matchId, contractOutcome, amount.toString());
 
       if (result.success) {
+        console.log("Bet placed onchain:", result.txHash);
+
+        // Also record in backend for UI updates
+        try {
+          await bettingService.placeBet(
+            currentMarket.id,
+            playerAddress,
+            outcome,
+            amount
+          )
+        } catch (backendErr) {
+          console.warn("Backend bet recording failed, but onchain bet succeeded:", backendErr);
+        }
+
         // Refresh market and portfolio
         const updatedMarket = await bettingService.getMarket(currentMarket.id)
         setCurrentMarket(updatedMarket)
         fetchPortfolio(true) // Force refresh after bet placement
       }
-    } catch (err) {
+    } catch (err: any) {
       console.error("Failed to place bet:", err)
-      // Mock success for demo
-      fetchPortfolio(true) // Force refresh after bet placement
+      setError(err?.message || "Failed to place bet");
+      // Show error to user - you might want to add a toast notification here
     }
   }
 
@@ -446,6 +472,8 @@ function AppContent() {
               walletBalance={walletBalance}
               isConnected={authenticated}
               userAddress={playerAddress}
+              isBettingOnchain={isBettingOnchain}
+              bettingError={bettingError}
             />
           }
         />
@@ -816,6 +844,8 @@ function MarketDetailWrapper({
   walletBalance,
   isConnected,
   userAddress,
+  isBettingOnchain,
+  bettingError,
 }: {
   markets: Market[]
   marketBets: Bet[]
@@ -825,13 +855,14 @@ function MarketDetailWrapper({
   userPositions: Position[]
   onPlaceBet: (
     outcome: Outcome,
-    side: "yes" | "no",
     amount: number
   ) => Promise<void>
   onBack: () => void
   walletBalance: number
   isConnected: boolean
   userAddress: string
+    isBettingOnchain?: boolean;
+    bettingError?: string | null;
 }) {
   const { marketId } = useParams()
   const [isLoading, setIsLoading] = useState(true)
@@ -879,6 +910,8 @@ function MarketDetailWrapper({
       walletBalance={walletBalance}
       isConnected={isConnected}
       userAddress={userAddress}
+      isBettingOnchain={isBettingOnchain}
+      bettingError={bettingError}
     />
   )
 }

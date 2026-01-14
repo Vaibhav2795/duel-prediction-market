@@ -6,7 +6,7 @@ interface BettingInterfaceProps {
 	market: Market;
 	selectedOutcome?: Outcome;
 	userPositions?: Position[];
-	onPlaceBet: (outcome: Outcome, side: "yes" | "no", amount: number) => Promise<void>;
+	onPlaceBet: (outcome: Outcome, amount: number) => Promise<void>;
 	isLoading?: boolean;
 	walletBalance?: number;
 	isConnected?: boolean;
@@ -22,7 +22,6 @@ export function BettingInterface({
 	isConnected = true
 }: BettingInterfaceProps) {
 	const [activeOutcome, setActiveOutcome] = useState<Outcome | null>(selectedOutcome || null);
-	const [activeSide, setActiveSide] = useState<"yes" | "no">("yes");
 	const [amount, setAmount] = useState<string>("");
 	const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -33,8 +32,8 @@ export function BettingInterface({
 
 	const currentPrice = useMemo(() => {
 		if (!outcomeData) return 0;
-		return activeSide === "yes" ? outcomeData.yesPrice : outcomeData.noPrice;
-	}, [outcomeData, activeSide]);
+		return outcomeData.yesPrice;
+	}, [outcomeData]);
 
 	const potentialPayout = useMemo(() => {
 		const numAmount = parseFloat(amount) || 0;
@@ -65,7 +64,7 @@ export function BettingInterface({
 		
 		setIsSubmitting(true);
 		try {
-			await onPlaceBet(activeOutcome, activeSide, parseFloat(amount));
+			await onPlaceBet(activeOutcome, parseFloat(amount));
 			setAmount("");
 		} finally {
 			setIsSubmitting(false);
@@ -125,28 +124,10 @@ export function BettingInterface({
 			{/* Betting Panel */}
 			{activeOutcome && outcomeData && (
 				<div className="p-4">
-					{/* Yes/No Toggle */}
-					<div className="flex gap-2 mb-4">
-						<button
-							onClick={() => setActiveSide("yes")}
-							className={`flex-1 py-3 rounded-lg font-semibold transition-all ${
-								activeSide === "yes"
-									? "bg-yes text-dark-500"
-									: "bg-dark-300 text-text-secondary hover:bg-dark-100"
-							}`}
-						>
-							Yes {(outcomeData.yesPrice * 100).toFixed(0)}¢
-						</button>
-						<button
-							onClick={() => setActiveSide("no")}
-							className={`flex-1 py-3 rounded-lg font-semibold transition-all ${
-								activeSide === "no"
-									? "bg-no text-white"
-									: "bg-dark-300 text-text-secondary hover:bg-dark-100"
-							}`}
-						>
-							No {(outcomeData.noPrice * 100).toFixed(0)}¢
-						</button>
+					{/* Price Display */}
+					<div className="mb-4 p-3 bg-dark-300 rounded-lg">
+						<div className="text-sm text-text-tertiary mb-1">Price per share</div>
+						<div className="text-2xl font-bold text-text-primary">{(outcomeData.yesPrice * 100).toFixed(0)}¢</div>
 					</div>
 
 					{/* Amount Input */}
@@ -208,13 +189,9 @@ export function BettingInterface({
 						<button
 							onClick={handleSubmit}
 							disabled={!amount || parseFloat(amount) <= 0 || isSubmitting || isLoading}
-							className={`w-full py-4 rounded-lg font-semibold text-lg transition-all ${
-								activeSide === "yes"
-									? "bg-yes hover:bg-yes-hover text-dark-500 disabled:opacity-50"
-									: "bg-no hover:bg-no-hover text-white disabled:opacity-50"
-							}`}
+							className="w-full py-4 rounded-lg font-semibold text-lg transition-all bg-yes hover:bg-yes-hover text-dark-500 disabled:opacity-50"
 						>
-							{isSubmitting ? (
+							{isSubmitting || isLoading ? (
 								<span className="flex items-center justify-center gap-2">
 									<svg className="animate-spin h-5 w-5" viewBox="0 0 24 24">
 										<circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
@@ -223,7 +200,7 @@ export function BettingInterface({
 									Placing Bet...
 								</span>
 							) : (
-								`Buy ${activeSide === "yes" ? "Yes" : "No"} for ${formatCurrency(parseFloat(amount) || 0)}`
+									`Place Bet for ${formatCurrency(parseFloat(amount) || 0)}`
 							)}
 						</button>
 					) : (
@@ -246,7 +223,7 @@ export function BettingInterface({
 					<div className="flex items-center justify-between">
 						<div>
 							<div className="text-xs text-text-tertiary mb-1">
-								{outcomeLabel(userPosition.outcome)} - {userPosition.side.toUpperCase()}
+								{outcomeLabel(userPosition.outcome)}
 							</div>
 							<div className="font-semibold text-text-primary">{userPosition.shares.toFixed(2)} shares</div>
 						</div>
@@ -269,25 +246,17 @@ export function BettingInterface({
 // Compact betting buttons for quick bets from market cards
 interface QuickBetButtonsProps {
 	outcome: OutcomeData;
-	onBet: (side: "yes" | "no") => void;
+	onBet: () => void;
 }
 
 export function QuickBetButtons({ outcome, onBet }: QuickBetButtonsProps) {
 	return (
-		<div className="flex gap-1">
-			<button
-				onClick={() => onBet("yes")}
-				className="px-3 py-1.5 text-xs font-medium rounded bg-yes-bg text-yes hover:bg-yes hover:text-dark-500 transition-all"
-			>
-				Yes {(outcome.yesPrice * 100).toFixed(0)}¢
-			</button>
-			<button
-				onClick={() => onBet("no")}
-				className="px-3 py-1.5 text-xs font-medium rounded bg-no-bg text-no hover:bg-no hover:text-white transition-all"
-			>
-				No {(outcome.noPrice * 100).toFixed(0)}¢
-			</button>
-		</div>
+		<button
+			onClick={onBet}
+			className="px-3 py-1.5 text-xs font-medium rounded bg-yes-bg text-yes hover:bg-yes hover:text-dark-500 transition-all"
+		>
+			Bet {(outcome.yesPrice * 100).toFixed(0)}¢
+		</button>
 	);
 }
 

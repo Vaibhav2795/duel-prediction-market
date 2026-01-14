@@ -105,9 +105,9 @@ router.get("/:id/bets", async (req, res) => {
 // TODO: Implement real betting service when betting functionality is ready
 router.post("/:id/bet", async (req, res) => {
 	try {
-		const { userAddress, outcome, side, amount } = req.body;
+		const { userAddress, outcome, amount } = req.body;
 		
-		if (!userAddress || !outcome || !side || !amount) {
+		if (!userAddress || !outcome || !amount) {
 			return res.status(400).json({ error: "Missing required fields" });
 		}
 		

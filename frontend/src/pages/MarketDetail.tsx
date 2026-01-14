@@ -10,11 +10,13 @@ interface MarketDetailPageProps {
 	bets: Bet[];
 	userPositions: Position[];
 	isLoading?: boolean;
-	onPlaceBet: (outcome: Outcome, side: "yes" | "no", amount: number) => Promise<void>;
+	onPlaceBet: (outcome: Outcome, amount: number) => Promise<void>;
 	onBack: () => void;
 	walletBalance?: number;
 	isConnected?: boolean;
 	userAddress?: string;
+	isBettingOnchain?: boolean;
+	bettingError?: string | null;
 }
 
 export function MarketDetailPage({
@@ -26,7 +28,9 @@ export function MarketDetailPage({
 	onBack,
 	walletBalance = 1000,
 	isConnected = true,
-	userAddress
+	userAddress,
+	isBettingOnchain = false,
+	bettingError = null
 }: MarketDetailPageProps) {
 	const [activeTab, setActiveTab] = useState<"overview" | "activity" | "positions">("overview");
 
@@ -312,20 +316,14 @@ export function MarketDetailPage({
 										recentBets.map((bet) => (
 											<div key={bet.id} className="flex items-center justify-between p-3 bg-dark-300 rounded-lg">
 												<div className="flex items-center gap-3">
-													<div className={`w-8 h-8 rounded-full flex items-center justify-center ${
-														bet.side === "yes" ? "bg-yes-bg text-yes" : "bg-no-bg text-no"
-													}`}>
-														{bet.side === "yes" ? "✓" : "✗"}
+													<div className="w-8 h-8 rounded-full flex items-center justify-center bg-yes-bg text-yes">
+														✓
 													</div>
 													<div>
 														<div className="text-sm text-text-primary">
 															<span className="font-medium">{formatAddress(bet.userAddress)}</span>
-															<span className="text-text-tertiary"> bet </span>
-															<span className={bet.side === "yes" ? "text-yes" : "text-no"}>
-																{bet.side.toUpperCase()}
-															</span>
-															<span className="text-text-tertiary"> on </span>
-															<span className="font-medium">{outcomeLabel(bet.outcome)}</span>
+															<span className="text-text-tertiary"> bet on </span>
+															<span className="font-medium text-yes">{outcomeLabel(bet.outcome)}</span>
 														</div>
 														<div className="text-xs text-text-tertiary">
 															{new Date(bet.createdAt).toLocaleString()}
@@ -355,12 +353,7 @@ export function MarketDetailPage({
 											<div key={pos.id} className="p-4 bg-dark-300 rounded-lg">
 												<div className="flex items-center justify-between mb-2">
 													<div className="flex items-center gap-2">
-														<span className={`px-2 py-0.5 rounded text-xs font-medium ${
-															pos.side === "yes" ? "bg-yes-bg text-yes" : "bg-no-bg text-no"
-														}`}>
-															{pos.side.toUpperCase()}
-														</span>
-														<span className="font-medium text-text-primary">
+														<span className="px-2 py-0.5 rounded text-xs font-medium bg-yes-bg text-yes">
 															{outcomeLabel(pos.outcome)}
 														</span>
 													</div>
@@ -390,7 +383,13 @@ export function MarketDetailPage({
 							onPlaceBet={onPlaceBet}
 							walletBalance={walletBalance}
 							isConnected={isConnected}
+							isLoading={isBettingOnchain}
 						/>
+						{bettingError && (
+							<div className="mt-4 p-3 bg-red-500/10 border border-red-500/20 rounded-lg">
+								<p className="text-sm text-red-400">{bettingError}</p>
+							</div>
+						)}
 					</div>
 				</div>
 			</div>
