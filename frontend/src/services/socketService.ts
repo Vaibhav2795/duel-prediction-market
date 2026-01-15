@@ -4,9 +4,9 @@ import type { Room, GameMove, Market, Bet, Position, UserPortfolio, MarketStats,
 class SocketService {
 	private socket: Socket | null = null;
 	// Use environment variable if set, otherwise use same origin (for production) or localhost:3000 (for dev)
-	private readonly SERVER_URL =
-		import.meta.env.VITE_SERVER_URL ||
-		(import.meta.env.PROD ? undefined : "http://localhost:3000");
+	// private readonly SERVER_URL =
+	// 	import.meta.env.VITE_SERVER_URL ||
+	// 	(import.meta.env.PROD ? undefined : "http://localhost:3000");
 
 	connect(): Socket {
 		if (!this.socket) {
