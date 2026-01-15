@@ -1,15 +1,17 @@
-// src/services/chessService.ts
+// src/services/chessService.ts - Optimized
 import { Chess } from "chess.js"
 import type { GameMove } from "@/types/game"
 import { roomService } from "@/services/room.service"
 import { matchResultService } from "./match.result.service"
 import { matchStatusWorker } from "@/workers/matchStatusWorker"
+import { matchService } from "@/services/match.service"
 import GameMoveModel from "@/models/GameMove"
+import Match from "@/models/Match"
 
 class ChessService {
   private games = new Map<string, Chess>()
 
-  initializeGame(matchId: string) {
+  initializeGame(matchId: string): void {
     if (!this.games.has(matchId)) {
       this.games.set(matchId, new Chess())
     }
@@ -40,8 +42,14 @@ class ChessService {
 
     const fen = game.fen()
 
+    // Get match to obtain MongoDB ObjectId for gameId
+    const match = await matchService.getMatchById(matchId)
+    if (!match) {
+      return { success: false, error: "Match not found" }
+    }
+
     await GameMoveModel.create({
-      gameId: matchId,
+      gameId: match._id, // Use MongoDB ObjectId, not numeric matchId
       moveNumber: game.history().length,
       san: moveResult.san,
       fen,
@@ -69,15 +77,11 @@ class ChessService {
 
     if (isGameOver && winner) {
       roomService.finishRoom(matchId, winner)
-
-      // Stop the game timer
       matchStatusWorker.stopGameTimer(matchId)
-
       await matchResultService.persistResult(matchId, winner, fen)
 
-      // Update match status to FINISHED
-      const Match = (await import("@/models/Match")).default
-      await Match.findByIdAndUpdate(matchId, {
+      // Use match._id for update (already fetched above)
+      await Match.findByIdAndUpdate(match._id, {
         status: "FINISHED",
         "result.winner": winner,
         "result.finalFen": fen,
