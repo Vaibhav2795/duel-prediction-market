@@ -1,29 +1,30 @@
-// src/services/roomService.ts
+// src/services/roomService.ts - Optimized
 import type { LiveMatch, Player } from "../types/game"
 
+const INITIAL_FEN = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"
+const MAX_PLAYERS = 2
+
 class RoomService {
-	private rooms = new Map<string, LiveMatch>();
-	private readonly MAX_PLAYERS = 2;
+	private rooms = new Map<string, LiveMatch>()
+	// Index: socketId -> matchId for O(1) disconnect lookup
+	private socketToMatch = new Map<string, string>()
 
-	createOrGetRoom(matchId: string, stakeAmount: number): LiveMatch {
-		let room = this.rooms.get(matchId);
-
-		if (!room) {
-			room = {
-				id: matchId,
-				stakeAmount,
-				players: [],
-				gameState:
-					"rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1",
-				status: "waiting",
-				currentTurn: "white",
-				createdAt: new Date()
-			};
-
-			this.rooms.set(matchId, room);
+	private createRoom(matchId: string, stakeAmount: number): LiveMatch {
+		const room: LiveMatch = {
+			id: matchId,
+			stakeAmount,
+			players: [],
+			gameState: INITIAL_FEN,
+			status: "waiting",
+			currentTurn: "white",
+			createdAt: new Date()
 		}
+		this.rooms.set(matchId, room)
+		return room
+	}
 
-		return room;
+	getRoom(matchId: string): LiveMatch | undefined {
+		return this.rooms.get(matchId)
 	}
 
 	joinRoom(
@@ -32,78 +33,81 @@ class RoomService {
 		playerAddress: string,
 		socketId: string
 	): { success: boolean; room?: LiveMatch; error?: string } {
-		const room = this.createOrGetRoom(matchId, stakeAmount);
+		const room = this.rooms.get(matchId) ?? this.createRoom(matchId, stakeAmount)
+		const addressLower = playerAddress.toLowerCase()
 
-		if (room.players.length >= this.MAX_PLAYERS) {
-			return { success: false, error: "Match already full" };
+		// Find existing player (O(n) where n <= 2)
+		const existingPlayer = room.players.find(p => p.address.toLowerCase() === addressLower)
+
+		if (existingPlayer) {
+			// Reconnection: update socket mapping
+			this.socketToMatch.delete(existingPlayer.socketId)
+			existingPlayer.socketId = socketId
+			this.socketToMatch.set(socketId, matchId)
+			return { success: true, room }
 		}
 
-		if (room.players.some(p => p.address === playerAddress)) {
-			return { success: false, error: "Player already joined" };
+		if (room.players.length >= MAX_PLAYERS) {
+			return { success: false, error: "Match already full" }
 		}
 
-		const color: "white" | "black" =
-			room.players.length === 0 ? "white" : "black";
-
+		// Add new player
 		const player: Player = {
 			id: playerAddress,
 			socketId,
 			address: playerAddress,
-			color
-		};
-
-		room.players.push(player);
-
-		if (room.players.length === 2) {
-			room.status = "active";
+			color: room.players.length === 0 ? "white" : "black"
 		}
 
-		return { success: true, room };
+		room.players.push(player)
+		this.socketToMatch.set(socketId, matchId)
+
+		if (room.players.length === MAX_PLAYERS) {
+			room.status = "active"
+		}
+
+		return { success: true, room }
 	}
 
-	getRoom(matchId: string) {
-		return this.rooms.get(matchId);
+	updateRoom(matchId: string, updates: Partial<LiveMatch>): void {
+		const room = this.rooms.get(matchId)
+		if (room) Object.assign(room, updates)
 	}
 
-	updateRoom(matchId: string, updates: Partial<LiveMatch>) {
-		const room = this.rooms.get(matchId);
-		if (!room) return;
-		Object.assign(room, updates);
-	}
+	// O(1) disconnect using socket index
+	removePlayerBySocket(socketId: string): string | undefined {
+		const matchId = this.socketToMatch.get(socketId)
+		if (!matchId) return undefined
 
-	removePlayer(matchId: string, socketId: string) {
-		const room = this.rooms.get(matchId);
-		if (!room) return;
+		this.socketToMatch.delete(socketId)
+		const room = this.rooms.get(matchId)
+		if (!room) return matchId
 
-		room.players = room.players.filter(p => p.socketId !== socketId);
+		const playerIndex = room.players.findIndex(p => p.socketId === socketId)
+		if (playerIndex !== -1) {
+			room.players.splice(playerIndex, 1)
+		}
 
 		if (room.players.length === 0) {
-			this.rooms.delete(matchId);
+			this.rooms.delete(matchId)
 		} else {
-			room.status = "waiting";
+			room.status = "waiting"
+		}
+
+		return matchId
+	}
+
+	finishRoom(matchId: string, winner: "white" | "black" | "draw"): void {
+		const room = this.rooms.get(matchId)
+		if (room) {
+			room.status = "finished"
+			room.winner = winner
 		}
 	}
 
-	finishRoom(matchId: string, winner: "white" | "black" | "draw") {
-		const room = this.rooms.get(matchId);
-		if (!room) return;
-
-		room.status = "finished";
-		room.winner = winner;
-	}
-
-	updatePlayerSocketId(
-		matchId: string,
-		playerAddress: string,
-		newSocketId: string
-	) {
-		const room = this.rooms.get(matchId);
-		if (!room) return;
-
-		const player = room.players.find(p => p.address === playerAddress);
-		if (player) {
-			player.socketId = newSocketId;
-		}
+	// For iteration (used by worker)
+	getAllRoomIds(): string[] {
+		return Array.from(this.rooms.keys())
 	}
 }
 

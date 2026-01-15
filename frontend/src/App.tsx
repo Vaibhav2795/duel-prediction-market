@@ -36,6 +36,8 @@ import type {
 import { useWalletBalance } from "./hooks/blockchain/useWalletBalance"
 import { Address } from "./hooks/blockchain/types"
 import { useBetOnMatchOnchain } from "./hooks/useOnchainHooks"
+import { useMatchActions } from "./hooks/blockchain/useMatchActions"
+import { useAccount } from "wagmi"
 
 const TOKEN_ADDRESS = import.meta.env.VITE_TOKEN_ADDRESS as Address
 function AppContent() {
@@ -81,7 +83,20 @@ function AppContent() {
   // Onchain betting hook
   const { betOnMatch, isLoading: isBettingOnchain, error: bettingError } = useBetOnMatchOnchain()
 
+  // Match actions hook for joining matches
+  const { joinMatch: joinMatchOnchain, isConnected: isWalletConnectedForMatch } = useMatchActions()
+  
+  // Direct wagmi connection check for additional validation
+  const { address: wagmiAddress, isConnected: isWagmiConnected } = useAccount()
+
   console.log({ balance, symbol, isLoadingBalance })
+  console.log("Wallet connection status:", { 
+    isWalletConnectedForMatch, 
+    isWagmiConnected, 
+    wagmiAddress, 
+    playerAddress,
+    authenticated 
+  })
   // Get wallet address from Privy and check user registration
   useEffect(() => {
     if (ready && authenticated && user) {
@@ -200,6 +215,12 @@ function AppContent() {
     }
 
     const handleMatchUpdated = (room: Room) => {
+      console.log("📢 match_updated received:", {
+        roomId: room.id,
+        playersCount: room.players?.length,
+        status: room.status,
+        players: room.players
+      })
       setCurrentRoom(room)
       // If we were joining this room, clear the joining state
       if (joiningMatchId === room.id) {
@@ -252,6 +273,13 @@ function AppContent() {
 
     const handleError = (err: { message: string }) => {
       console.error("Socket error:", err)
+      console.error("Error details:", {
+        message: err.message,
+        joiningMatchId,
+        playerAddress,
+        currentRoom: currentRoom?.id,
+      })
+      
       // If "Player already joined", it means we're already in the room
       // This is not really an error - we should just wait for the room state
       if (
@@ -265,7 +293,17 @@ function AppContent() {
         // Don't set this as an error, just wait for match_joined or match_updated
         return
       }
-      setError(err.message)
+
+      // If contract succeeded but socket failed, show a more helpful message
+      if (err.message === "Failed to join match") {
+        setError(
+          "Contract transaction succeeded, but failed to join match room. " +
+          "This may be due to: match not being LIVE, join window expired, or you're not assigned to this match. " +
+          "Please check the match status and try again."
+        )
+      } else {
+        setError(err.message)
+      }
       setJoiningMatchId(null)
     }
 
@@ -365,20 +403,56 @@ function AppContent() {
         console.log("Already joining this match, skipping...")
         return
       }
-      // After creating match, join it via socket
-      // Navigation will happen in handleMatchJoined callback
-      console.log("Creating match, joining via socket:", match.id)
-      setJoiningMatchId(match.id)
-      socketService.joinMatch(match.id, playerAddress, match.stakeAmount)
+
+      console.log("Match created:", match.id, "Status:", match.status)
       setShowCreateRoom(false)
+
+      // Note: When a match is first created, it's in "SCHEDULED" status
+      // The backend requires matches to be "LIVE" before joining
+      // The match will automatically transition to LIVE when scheduledAt time arrives
+      // For now, just show a success message and let the user know they need to wait
+      if (match.status === "SCHEDULED") {
+        console.log(
+          "Match is scheduled. It will become LIVE at:",
+          new Date(match.scheduledAt).toLocaleString()
+        )
+        // Don't try to join yet - the match needs to be LIVE first
+        // The user can manually join later when the match becomes LIVE
+        return
+      }
+
+      // If match is already LIVE (shouldn't happen on creation, but handle it)
+      if (match.status === "LIVE") {
+        // Fetch match to get exact wallet address format from database
+        let matchPlayerAddress = playerAddress
+        try {
+          const fullMatch = await getMatchById(match.id)
+          const isPlayer1 =
+            fullMatch.player1.wallet.toLowerCase() === playerAddress.toLowerCase()
+          const isPlayer2 =
+            fullMatch.player2.wallet.toLowerCase() === playerAddress.toLowerCase()
+
+          if (isPlayer1 || isPlayer2) {
+            matchPlayerAddress = isPlayer1
+              ? fullMatch.player1.wallet
+              : fullMatch.player2.wallet
+          }
+        } catch (matchErr) {
+          console.warn("Failed to fetch match details:", matchErr)
+        }
+
+        console.log("Match is LIVE, joining via socket:", match.id)
+        setJoiningMatchId(match.id)
+        socketService.joinMatch(match.id, matchPlayerAddress, match.stakeAmount)
+      }
     } catch (err: any) {
-      console.error("Error joining match:", err)
-      setError(err.message || "Failed to join match")
+      console.error("Error handling created match:", err)
+      setError(err.message || "Failed to process created match")
       setJoiningMatchId(null)
     }
   }
 
-  const handleJoinMatch = (matchId: string, stakeAmount: number) => {
+  const handleJoinMatch = async (matchId: string, stakeAmount: number) => {
     try {
       setError("")
       // Prevent duplicate joins
@@ -386,10 +460,116 @@ function AppContent() {
         console.log("Already joining this match, skipping...")
         return
       }
-      console.log("Joining match via socket:", matchId)
+
+      // Check wallet connection - isWalletConnectedForMatch now checks wagmi connection
+      if (!isWalletConnectedForMatch) {
+        console.error("Wallet connection check failed:", {
+          isWalletConnectedForMatch,
+          isWagmiConnected,
+          wagmiAddress,
+          playerAddress,
+          authenticated
+        })
+        setError("Please connect your wallet to join a match")
+        return
+      }
+
+      // Verify that wagmi address matches player address
+      if (wagmiAddress && wagmiAddress.toLowerCase() !== playerAddress.toLowerCase()) {
+        console.error("Address mismatch:", {
+          wagmiAddress,
+          playerAddress
+        })
+        setError("Wallet address mismatch. Please reconnect your wallet.")
+        return
+      }
+
+      // Convert matchId to number for contract call
+      const numericMatchId = parseInt(matchId)
+      if (isNaN(numericMatchId)) {
+        throw new Error("Invalid match ID")
+      }
+
+      // Step 0: Fetch match details to get exact wallet address format from database
+      // This ensures we use the same case as stored in the database for socket call
+      let matchPlayerAddress = playerAddress
+      try {
+        const match = await getMatchById(matchId)
+        console.log("Match details:", {
+          id: match.id,
+          status: match.status,
+          player1: match.player1.wallet,
+          player2: match.player2.wallet,
+          userAddress: playerAddress,
+        })
+
+        // Verify user is assigned to this match (case-insensitive check)
+        const isPlayer1 =
+          match.player1.wallet.toLowerCase() === playerAddress.toLowerCase()
+        const isPlayer2 =
+          match.player2.wallet.toLowerCase() === playerAddress.toLowerCase()
+
+        if (!isPlayer1 && !isPlayer2) {
+          throw new Error("You are not assigned to this match")
+        }
+
+        // Use the exact wallet address format from the database
+        // This ensures case-sensitive backend comparison works
+        matchPlayerAddress = isPlayer1
+          ? match.player1.wallet
+          : match.player2.wallet
+
+        // Check if match is LIVE
+        if (match.status !== "LIVE") {
+          throw new Error(
+            `Match is not live yet. Current status: ${match.status}. Please wait for the match to become LIVE.`
+          )
+        }
+
+        console.log(
+          "Using database wallet address format:",
+          matchPlayerAddress,
+          "(original:",
+          playerAddress,
+          ")"
+        )
+      } catch (matchErr: any) {
+        // If match fetch fails, still try to proceed but log the error
+        console.warn("Failed to fetch match details:", matchErr)
+        if (matchErr.message.includes("not assigned")) {
+          throw matchErr
+        }
+        if (matchErr.message.includes("not live")) {
+          throw matchErr
+        }
+        // Continue with original address if it's just a fetch error
+      }
+
+      console.log("Joining match onchain:", matchId, "stake:", stakeAmount)
       setJoiningMatchId(matchId)
-      // Join match via socket - navigation will happen in handleMatchJoined callback
-      socketService.joinMatch(matchId, playerAddress, stakeAmount)
+
+      // Step 1: Call contract to join match (deposit stake)
+      const result = await joinMatchOnchain(numericMatchId, stakeAmount.toString())
+
+      if (!result || !result.hash) {
+        throw new Error("Failed to join match on blockchain")
+      }
+
+      console.log("Match joined onchain, transaction hash:", result.hash)
+
+      // Step 2: Wait a brief moment for transaction to be fully processed
+      // This ensures the backend can verify the onchain state if needed
+      await new Promise((resolve) => setTimeout(resolve, 1000))
+
+      // Step 3: Join match via socket - navigation will happen in handleMatchJoined callback
+      // Use the exact wallet address format from the database to match backend's case-sensitive comparison
+      console.log(
+        "Calling socket to join match:",
+        matchId,
+        "player:",
+        matchPlayerAddress
+      )
+      socketService.joinMatch(matchId, matchPlayerAddress, stakeAmount)
     } catch (err: any) {
       console.error("Error joining match:", err)
       setError(err.message || "Failed to join match")
@@ -764,24 +944,41 @@ function GameRouteWrapper({
               ← Back to Lobby
             </button>
           </div>
-          {currentRoom.players?.length === 2 &&
-          currentRoom.status === "active" ? (
-            <ChessBoard
-              room={currentRoom}
-              playerAddress={playerAddress}
-              onGameOver={onGameOver}
-            />
-          ) : (
-            <div className='card p-10 text-center'>
-              <div className='w-12 h-12 border-4 border-accent border-t-transparent rounded-full animate-spin mx-auto mb-4' />
-              <p className='text-lg text-text-secondary'>
-                Waiting for opponent to join...
-              </p>
-              <p className='mt-2 text-text-tertiary'>
-                {currentRoom.players?.length || 0}/2 players
-              </p>
-            </div>
-          )}
+          {(() => {
+            const playersCount = currentRoom.players?.length || 0;
+            const isActive = currentRoom.status === "active";
+            const shouldShowBoard = playersCount === 2 && isActive;
+            
+            console.log("🎮 GameRouteWrapper render check:", {
+              playersCount,
+              status: currentRoom.status,
+              shouldShowBoard,
+              players: currentRoom.players?.map(p => ({ address: p.address, color: p.color }))
+            });
+            
+            return shouldShowBoard ? (
+              <ChessBoard
+                room={currentRoom}
+                playerAddress={playerAddress}
+                onGameOver={onGameOver}
+              />
+            ) : (
+              <div className='card p-10 text-center'>
+                <div className='w-12 h-12 border-4 border-accent border-t-transparent rounded-full animate-spin mx-auto mb-4' />
+                <p className='text-lg text-text-secondary'>
+                  Waiting for opponent to join...
+                </p>
+                <p className='mt-2 text-text-tertiary'>
+                  {playersCount}/2 players
+                </p>
+                {playersCount === 2 && !isActive && (
+                  <p className='mt-2 text-yellow-500 text-sm'>
+                    Status: {currentRoom.status} (waiting for active status)
+                  </p>
+                )}
+              </div>
+            );
+          })()}
         </div>
       ) : (
         <div className='text-center py-16'>

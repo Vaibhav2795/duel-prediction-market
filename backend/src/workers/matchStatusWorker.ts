@@ -1,237 +1,166 @@
-// workers/matchStatusWorker.ts
-import Match from "@/models/Match";
-import { roomService } from "@/services/room.service";
-import { chessService } from "@/services/chess.service";
-import { matchResultService } from "@/services/match.result.service";
+// workers/matchStatusWorker.ts - Optimized
+import Match from "@/models/Match"
+import { roomService } from "@/services/room.service"
+import { chessService } from "@/services/chess.service"
+import { matchResultService } from "@/services/match.result.service"
 
-const JOIN_WINDOW_MS = 10 * 60 * 1000; // 10 minutes
-const GAME_TIME_MS = 10 * 60 * 1000; // 10 minutes per player
+const JOIN_WINDOW_MS = 60 * 60 * 1000 // 1 hour
+const CHECK_INTERVAL_MS = 30000 // 30 seconds
+const TIMER_INTERVAL_MS = 1000 // 1 second
+
+type Winner = "white" | "black" | "draw"
 
 class MatchStatusWorker {
-  private intervalId: NodeJS.Timeout | null = null;
-  private timerIntervals = new Map<string, NodeJS.Timeout>();
+  private intervalId: NodeJS.Timeout | null = null
+  private timerIntervals = new Map<string, NodeJS.Timeout>()
 
-  start() {
-    // Check every 30 seconds for matches that need status updates
-    this.intervalId = setInterval(() => {
-      this.processMatches();
-    }, 30000);
-
-    // Also process immediately on start
-    this.processMatches();
+  start(): void {
+    this.intervalId = setInterval(() => this.processMatches(), CHECK_INTERVAL_MS)
+    this.processMatches() // Run immediately
   }
 
-  stop() {
+  stop(): void {
     if (this.intervalId) {
-      clearInterval(this.intervalId);
-      this.intervalId = null;
+      clearInterval(this.intervalId)
+      this.intervalId = null
     }
-    // Clear all timer intervals
-    this.timerIntervals.forEach(interval => clearInterval(interval));
-    this.timerIntervals.clear();
+    this.timerIntervals.forEach(clearInterval)
+    this.timerIntervals.clear()
   }
 
-  private async processMatches() {
+  private async processMatches(): Promise<void> {
     try {
-      const now = new Date();
+      const now = new Date()
 
-      // 1. Transition SCHEDULED matches to LIVE when scheduledAt arrives
-      const scheduledMatches = await Match.find({
-        status: "SCHEDULED",
-        scheduledAt: { $lte: now },
-      });
+      // Batch: Transition SCHEDULED -> LIVE
+      await Match.updateMany(
+        { status: "SCHEDULED", scheduledAt: { $lte: now } },
+        { $set: { status: "LIVE", liveAt: now, joinWindowEndsAt: new Date(now.getTime() + JOIN_WINDOW_MS) } }
+      )
 
-      for (const match of scheduledMatches) {
-        const joinWindowEndsAt = new Date(now.getTime() + JOIN_WINDOW_MS);
-        await Match.findByIdAndUpdate(match._id, {
-          status: "LIVE",
-          liveAt: now,
-          joinWindowEndsAt,
-        });
-        console.log(`✅ Match ${match._id} transitioned to LIVE`);
-      }
-
-      // 2. Cancel LIVE matches where join window expired and not both players joined
-      const expiredJoinWindowMatches = await Match.find({
+      // Batch: Cancel expired join windows (no game started)
+      const expiredMatches = await Match.find({
         status: "LIVE",
         joinWindowEndsAt: { $lte: now },
-        gameStartedAt: { $exists: false },
-      });
+        gameStartedAt: { $exists: false }
+      }, { _id: 1, matchId: 1 }).lean()
 
-      for (const match of expiredJoinWindowMatches) {
-        const room = roomService.getRoom(match._id.toString());
-        if (!room || room.players.length < 2) {
-          await Match.findByIdAndUpdate(match._id, {
-            status: "CANCELLED",
-          });
-          console.log(`❌ Match ${match._id} cancelled - join window expired`);
-          
-          // Clean up room
-          if (room) {
-            roomService["rooms"]?.delete(match._id.toString());
-          }
-        }
+      const expiredIds = expiredMatches
+        .filter(m => {
+          const room = roomService.getRoom(m.matchId?.toString() || m._id.toString())
+          return !room || room.players.length < 2
+        })
+        .map(m => m._id)
+
+      if (expiredIds.length > 0) {
+        await Match.updateMany({ _id: { $in: expiredIds } }, { $set: { status: "CANCELLED" } })
+        console.log(`❌ Cancelled ${expiredIds.length} matches - join window expired`)
       }
 
-      // 3. Check for games where time expired
-      const liveMatches = await Match.find({
-        status: "LIVE",
-        gameStartedAt: { $exists: true },
-      });
-
-      for (const match of liveMatches) {
-        const room = roomService.getRoom(match._id.toString());
-        if (!room || room.status === "finished") continue;
-
-        // Check if white time expired
-        if (match.whiteTimeRemaining <= 0 && room.currentTurn === "white") {
-          await this.handleTimeExpiration(match._id.toString(), "black");
-          continue;
-        }
-
-        // Check if black time expired
-        if (match.blackTimeRemaining <= 0 && room.currentTurn === "black") {
-          await this.handleTimeExpiration(match._id.toString(), "white");
-          continue;
-        }
-      }
+      // Check time expiration for active games (handled by individual timers)
     } catch (error) {
-      console.error("Error processing matches:", error);
+      console.error("Error processing matches:", error)
     }
   }
 
-  startGameTimer(matchId: string) {
-    // Clear existing timer if any
-    if (this.timerIntervals.has(matchId)) {
-      clearInterval(this.timerIntervals.get(matchId)!);
-    }
+  startGameTimer(matchId: string): void {
+    this.stopGameTimer(matchId) // Clear existing
 
-    // Update timer every second
     const interval = setInterval(async () => {
       try {
-        const match = await Match.findById(matchId);
-        if (!match || match.status !== "LIVE") {
-          clearInterval(interval);
-          this.timerIntervals.delete(matchId);
-          return;
-        }
-
-        const room = roomService.getRoom(matchId);
+        const room = roomService.getRoom(matchId)
         if (!room || room.status === "finished") {
-          clearInterval(interval);
-          this.timerIntervals.delete(matchId);
-          return;
+          return this.stopGameTimer(matchId)
         }
 
-        const now = Date.now();
-        const gameStartedAt = match.gameStartedAt?.getTime() || now;
-        const elapsed = now - gameStartedAt;
-
-        // Calculate time remaining based on moves made
-        // For simplicity, we'll use a simple countdown from game start
-        // In a real implementation, you'd track time per move
-        let whiteTimeRemaining = match.whiteTimeRemaining;
-        let blackTimeRemaining = match.blackTimeRemaining;
-
-        // Decrement time for current turn
-        if (room.currentTurn === "white" && whiteTimeRemaining > 0) {
-          whiteTimeRemaining = Math.max(0, whiteTimeRemaining - 1000);
-        } else if (room.currentTurn === "black" && blackTimeRemaining > 0) {
-          blackTimeRemaining = Math.max(0, blackTimeRemaining - 1000);
-        }
-
-        await Match.findByIdAndUpdate(matchId, {
-          whiteTimeRemaining,
-          blackTimeRemaining,
-        });
-
-        // Update room with timer info
-        roomService.updateRoom(matchId, {
-          whiteTimeRemaining,
-          blackTimeRemaining,
-        });
-
-        // Emit timer update to clients
-        const updatedRoom = roomService.getRoom(matchId);
-        if (updatedRoom) {
-          global.io?.to(matchId).emit("match_updated", updatedRoom);
-        }
+        const match = await Match.findOne({ matchId: parseInt(matchId) || matchId })
+          .select("status whiteTimeRemaining blackTimeRemaining")
+          .lean()
         
-        global.io?.to(matchId).emit("timer_update", {
-          whiteTimeRemaining,
-          blackTimeRemaining,
-        });
+        if (!match || match.status !== "LIVE") {
+          return this.stopGameTimer(matchId)
+        }
 
-        // Check for time expiration
-        if (whiteTimeRemaining <= 0 && room.currentTurn === "white") {
-          await this.handleTimeExpiration(matchId, "black");
-          clearInterval(interval);
-          this.timerIntervals.delete(matchId);
-        } else if (blackTimeRemaining <= 0 && room.currentTurn === "black") {
-          await this.handleTimeExpiration(matchId, "white");
-          clearInterval(interval);
-          this.timerIntervals.delete(matchId);
+        // Decrement current player's time
+        const isWhiteTurn = room.currentTurn === "white"
+        let { whiteTimeRemaining = 0, blackTimeRemaining = 0 } = match
+
+        if (isWhiteTurn) {
+          whiteTimeRemaining = Math.max(0, whiteTimeRemaining - TIMER_INTERVAL_MS)
+        } else {
+          blackTimeRemaining = Math.max(0, blackTimeRemaining - TIMER_INTERVAL_MS)
+        }
+
+        // Update DB and room
+        await Match.updateOne(
+          { matchId: parseInt(matchId) || matchId },
+          { $set: { whiteTimeRemaining, blackTimeRemaining } }
+        )
+        roomService.updateRoom(matchId, { whiteTimeRemaining, blackTimeRemaining })
+
+        // Emit updates
+        const updatedRoom = roomService.getRoom(matchId)
+        if (updatedRoom) {
+          global.io?.to(matchId).emit("match_updated", updatedRoom)
+        }
+        global.io?.to(matchId).emit("timer_update", { whiteTimeRemaining, blackTimeRemaining })
+
+        // Check time expiration
+        if (isWhiteTurn && whiteTimeRemaining <= 0) {
+          await this.handleTimeExpiration(matchId, "black")
+          this.stopGameTimer(matchId)
+        } else if (!isWhiteTurn && blackTimeRemaining <= 0) {
+          await this.handleTimeExpiration(matchId, "white")
+          this.stopGameTimer(matchId)
         }
       } catch (error) {
-        console.error(`Error updating timer for match ${matchId}:`, error);
+        console.error(`Timer error for ${matchId}:`, error)
       }
-    }, 1000);
+    }, TIMER_INTERVAL_MS)
 
-    this.timerIntervals.set(matchId, interval);
+    this.timerIntervals.set(matchId, interval)
   }
 
-  private async handleTimeExpiration(matchId: string, winner: "white" | "black") {
-    try {
-      const match = await Match.findById(matchId);
-      if (!match) return;
-
-      const room = roomService.getRoom(matchId);
-      if (!room) return;
-
-      const finalFen = room.gameState;
-      const drawWinner: "white" | "black" | "draw" = winner;
-
-      // Update match status
-      await Match.findByIdAndUpdate(matchId, {
-        status: "FINISHED",
-        "result.winner": drawWinner,
-        "result.finalFen": finalFen,
-        "result.finishedAt": new Date(),
-      });
-
-      // Update room
-      roomService.finishRoom(matchId, drawWinner);
-
-      // Persist result
-      await matchResultService.persistResult(matchId, drawWinner, finalFen);
-
-      // Emit to clients
-      global.io?.to(matchId).emit("match_finished", {
-        matchId,
-        winner: drawWinner,
-        finalFen,
-        reason: "time_expired",
-      });
-
-      // Clean up timer
-      if (this.timerIntervals.has(matchId)) {
-        clearInterval(this.timerIntervals.get(matchId)!);
-        this.timerIntervals.delete(matchId);
-      }
-
-      console.log(`⏰ Match ${matchId} finished - ${winner} won by time`);
-    } catch (error) {
-      console.error(`Error handling time expiration for match ${matchId}:`, error);
+  stopGameTimer(matchId: string): void {
+    const interval = this.timerIntervals.get(matchId)
+    if (interval) {
+      clearInterval(interval)
+      this.timerIntervals.delete(matchId)
     }
   }
 
-  stopGameTimer(matchId: string) {
-    if (this.timerIntervals.has(matchId)) {
-      clearInterval(this.timerIntervals.get(matchId)!);
-      this.timerIntervals.delete(matchId);
+  private async handleTimeExpiration(matchId: string, winner: Winner): Promise<void> {
+    try {
+      const room = roomService.getRoom(matchId)
+      const finalFen = room?.gameState || ""
+
+      await Match.updateOne(
+        { matchId: parseInt(matchId) || matchId },
+        {
+          $set: {
+            status: "FINISHED",
+            "result.winner": winner,
+            "result.finalFen": finalFen,
+            "result.finishedAt": new Date()
+          }
+        }
+      )
+
+      roomService.finishRoom(matchId, winner)
+      await matchResultService.persistResult(matchId, winner, finalFen)
+
+      global.io?.to(matchId).emit("match_finished", {
+        matchId,
+        winner,
+        finalFen,
+        reason: "time_expired"
+      })
+
+      console.log(`⏰ Match ${matchId} finished - ${winner} won by time`)
+    } catch (error) {
+      console.error(`Time expiration error for ${matchId}:`, error)
     }
   }
 }
 
-export const matchStatusWorker = new MatchStatusWorker();
-
+export const matchStatusWorker = new MatchStatusWorker()

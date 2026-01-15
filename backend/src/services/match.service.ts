@@ -108,14 +108,14 @@ class MatchService {
   }
 
   async getMatchMoves(matchId: string) {
-    // Verify match exists
-    const match = await Match.findById(matchId)
+    // Get match using service to handle both ObjectId and numeric matchId
+    const match = await this.getMatchById(matchId)
     if (!match) {
       return null
     }
 
-    // Get moves for this match (gameId is set to matchId in chess service)
-    const moves = await GameMove.find({ gameId: matchId })
+    // Get moves using match's MongoDB ObjectId (gameId stores the ObjectId, not numeric matchId)
+    const moves = await GameMove.find({ gameId: match._id })
       .sort({ moveNumber: 1 })
       .select("-__v")
 

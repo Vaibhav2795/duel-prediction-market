@@ -1,4 +1,5 @@
-import { useState } from "react"
+// Layout.tsx - Optimized
+import { useState, useCallback, useMemo } from "react"
 import { formatCurrency, formatAddress } from "../styles/designTokens"
 
 interface LayoutProps {
@@ -16,6 +17,13 @@ interface LayoutProps {
   onSearch?: (value: string) => void
 }
 
+const NAV_ITEMS = [
+  { path: "/", label: "Browse", icon: "🏠" },
+  { path: "/portfolio", label: "Portfolio", icon: "💼" },
+  { path: "/create", label: "Create", icon: "➕" },
+  { path: "/history", label: "History", icon: "📜" },
+] as const
+
 export function Layout({
   children,
   walletAddress,
@@ -32,13 +40,21 @@ export function Layout({
 }: LayoutProps) {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false)
   const [isProfileOpen, setIsProfileOpen] = useState(false)
+  const [copied, setCopied] = useState(false)
 
-  const navItems = [
-    { path: "/", label: "Browse", icon: "🏠" },
-    { path: "/portfolio", label: "Portfolio", icon: "💼" },
-    { path: "/create", label: "Create", icon: "➕" },
-    { path: "/history", label: "History", icon: "📜" },
-  ]
+  const handleCopyAddress = useCallback(async () => {
+    if (!walletAddress) return
+    try {
+      await navigator.clipboard.writeText(walletAddress)
+      setCopied(true)
+      setTimeout(() => setCopied(false), 2000)
+    } catch {}
+  }, [walletAddress])
+
+  const formattedBalance = useMemo(
+    () => isBalanceLoading ? "Loading..." : `${formatCurrency(Number(balance))} ${symbol}`,
+    [isBalanceLoading, balance, symbol]
+  )
 
   return (
     <div className='min-h-screen bg-dark-500 flex flex-col'>
@@ -62,7 +78,7 @@ export function Layout({
 
               {/* Desktop Navigation */}
               <nav className='hidden md:flex items-center gap-1'>
-                {navItems.map((item) => (
+                {NAV_ITEMS.map((item) => (
                   <button
                     key={item.path}
                     onClick={() => onNavigate?.(item.path)}
@@ -123,9 +139,7 @@ export function Layout({
                     />
                   </svg>
                   <span className='text-sm font-medium text-text-primary'>
-                    {isBalanceLoading
-                      ? "Loading..."
-                      : `${formatCurrency(Number(balance))} ${symbol}`}
+                    {formattedBalance}
                   </span>
                 </div>
               )}
@@ -162,18 +176,53 @@ export function Layout({
 
                   {/* Dropdown */}
                   {isProfileOpen && (
-                    <div className='absolute right-0 mt-2 w-56 bg-dark-200 border border-border rounded-xl shadow-lg overflow-hidden animate-slideDown'>
+                    <div className='absolute right-0 mt-2 w-80 bg-dark-200 border border-border rounded-xl shadow-lg overflow-hidden animate-slideDown'>
                       <div className='p-4 border-b border-border'>
                         <div className='text-xs text-text-tertiary mb-1'>
                           Connected as
                         </div>
-                        <div className='text-sm font-medium text-text-primary truncate'>
-                          {walletAddress}
+                        <div className='flex items-center gap-2 group'>
+                          <div className='text-sm font-mono text-text-primary break-all flex-1'>
+                            {walletAddress}
+                          </div>
+                          <button
+                            onClick={handleCopyAddress}
+                            className='flex-shrink-0 p-1.5 rounded hover:bg-dark-300 transition-colors group/copy'
+                            title={copied ? "Copied!" : "Copy address"}
+                          >
+                            {copied ? (
+                              <svg
+                                className='w-4 h-4 text-accent'
+                                fill='none'
+                                viewBox='0 0 24 24'
+                                stroke='currentColor'
+                              >
+                                <path
+                                  strokeLinecap='round'
+                                  strokeLinejoin='round'
+                                  strokeWidth={2}
+                                  d='M5 13l4 4L19 7'
+                                />
+                              </svg>
+                            ) : (
+                              <svg
+                                className='w-4 h-4 text-text-tertiary group-hover/copy:text-text-primary transition-colors'
+                                fill='none'
+                                viewBox='0 0 24 24'
+                                stroke='currentColor'
+                              >
+                                <path
+                                  strokeLinecap='round'
+                                  strokeLinejoin='round'
+                                  strokeWidth={2}
+                                  d='M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z'
+                                />
+                              </svg>
+                            )}
+                          </button>
                         </div>
                         <div className='mt-2 text-sm text-accent font-medium'>
-                          {isBalanceLoading
-                            ? "Loading..."
-                            : `${formatCurrency(Number(balance))} ${symbol}`}
+                          {formattedBalance}
                         </div>
                       </div>
                       <div className='p-2'>
@@ -269,7 +318,7 @@ export function Layout({
               </div>
 
               {/* Mobile Nav */}
-              {navItems.map((item) => (
+              {NAV_ITEMS.map((item) => (
                 <button
                   key={item.path}
                   onClick={() => {

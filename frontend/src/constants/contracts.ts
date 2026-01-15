@@ -3,6 +3,7 @@ import type { Abi, Address } from "viem"
 // Note: These paths are relative to the frontend/src directory
 import ChessEscrowABI from "../../contracts/CHESS_ESCROW.json"
 import PredictionMarketABI from "../../contracts/PREDICTION_MARKET.json"
+import TokenABI from "../../contracts/TOKEN_ABI.json"
 
 // Contract addresses from environment variables
 export const CHESS_ESCROW_ADDRESS = (import.meta.env
@@ -15,6 +16,7 @@ export const TOKEN_ADDRESS = (import.meta.env.VITE_TOKEN_ADDRESS ||
 // Contract ABIs
 export const CHESS_ESCROW_ABI = ChessEscrowABI as Abi
 export const PREDICTION_MARKET_ABI = PredictionMarketABI as Abi
+export const TOKEN_ABI = TokenABI as Abi
 
 // Outcome constants
 export const OUTCOME_PLAYER1 = 1
