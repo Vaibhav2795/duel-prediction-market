@@ -3,10 +3,10 @@ import type { Room, GameMove, Market, Bet, Position, UserPortfolio, MarketStats,
 
 class SocketService {
 	private socket: Socket | null = null;
-	// Use environment variable if set, otherwise use same origin (for production) or localhost:3000 (for dev)
+	// Use environment variable if set, otherwise use same origin (for production) or default backend URL
 	private readonly SERVER_URL =
 		import.meta.env.VITE_SERVER_URL ||
-		(import.meta.env.PROD ? undefined : "http://localhost:3000");
+		(import.meta.env.PROD ? "https://friendly-chebakia-39521d.netlify.app" : "https://friendly-chebakia-39521d.netlify.app");
 
 	connect(): Socket {
 		if (!this.socket) {

@@ -163,7 +163,7 @@ export const zIndex = {
 }
 
 // Utility function to format currency
-export const formatCurrency = (amount: number, currency = "USD"): string => {
+export const formatCurrency = (amount: number, _currency = "USD"): string => {
   if (amount >= 1_000_000) {
     return `${(amount / 1_000_000).toFixed(1)}M`
   }

@@ -14,7 +14,6 @@ interface MarketDetailPageProps {
 	onBack: () => void;
 	walletBalance?: number;
 	isConnected?: boolean;
-	userAddress?: string;
 	isBettingOnchain?: boolean;
 	bettingError?: string | null;
 }
@@ -28,7 +27,6 @@ export function MarketDetailPage({
 	onBack,
 	walletBalance = 1000,
 	isConnected = true,
-	userAddress,
 	isBettingOnchain = false,
 	bettingError = null
 }: MarketDetailPageProps) {

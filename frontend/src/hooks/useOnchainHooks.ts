@@ -6,12 +6,15 @@ import {
   http,
   type Address,
   parseUnits,
+  maxUint256,
 } from "viem"
 import {
   CHESS_ESCROW_ADDRESS,
   PREDICTION_MARKET_ADDRESS,
   CHESS_ESCROW_ABI,
   PREDICTION_MARKET_ABI,
+  TOKEN_ABI,
+  TOKEN_ADDRESS,
   OUTCOME_PLAYER1,
   OUTCOME_PLAYER2,
   OUTCOME_DRAW,
@@ -167,6 +170,7 @@ export function useCreateMatchOnchain() {
 
 /**
  * Hook to join a match (deposit for opponent)
+ * Handles token approval and deposit
  */
 export function useJoinMatchOnchain() {
   const { sendTransaction } = useSendTransaction()
@@ -176,7 +180,7 @@ export function useJoinMatchOnchain() {
   const [error, setError] = useState<string | null>(null)
 
   const joinMatch = useCallback(
-    async (matchId: number) => {
+    async (matchId: number, stakeAmount: string) => {
       if (!authenticated) {
         throw new Error("Wallet not connected")
       }
@@ -191,32 +195,71 @@ export function useJoinMatchOnchain() {
 
       try {
         const matchIdUint64 = BigInt(matchId)
+        const amountWei = parseUnits(stakeAmount, 18)
+        const userAddress = wallet.address as Address
 
+        // Step 1: Check token allowance
+        const allowance = (await publicClient.readContract({
+          address: TOKEN_ADDRESS,
+          abi: TOKEN_ABI,
+          functionName: "allowance",
+          args: [userAddress, CHESS_ESCROW_ADDRESS],
+        })) as bigint
+
+        // Step 2: Approve if needed
+        if (allowance < amountWei) {
+          console.log("Insufficient allowance, requesting approval...")
+          const approveData = encodeFunctionData({
+            abi: TOKEN_ABI,
+            functionName: "approve",
+            args: [CHESS_ESCROW_ADDRESS, maxUint256],
+          })
+
+          const approveTx = await sendTransaction(
+            {
+              to: TOKEN_ADDRESS,
+              data: approveData,
+              value: BigInt(0),
+            },
+            {
+              address: userAddress,
+              uiOptions: {
+                showWalletUIs: false,
+              },
+            }
+          )
+
+          await publicClient.waitForTransactionReceipt({ hash: approveTx.hash })
+          console.log("Token approval granted")
+        }
+
+        // Step 3: Deposit
         const depositData = encodeFunctionData({
           abi: CHESS_ESCROW_ABI,
           functionName: "deposit",
           args: [matchIdUint64],
         })
 
-        const tx = await sendTransaction(
+        const depositTx = await sendTransaction(
           {
             to: CHESS_ESCROW_ADDRESS,
             data: depositData,
             value: BigInt(0),
           },
           {
-            address: wallet.address as Address,
+            address: userAddress,
             uiOptions: {
               showWalletUIs: false,
             },
           }
         )
 
-        await publicClient.waitForTransactionReceipt({ hash: tx.hash })
+        await publicClient.waitForTransactionReceipt({ hash: depositTx.hash })
 
         return {
           success: true,
-          txHash: tx.hash,
+          hash: depositTx.hash,
+          txHash: depositTx.hash,
         }
       } catch (err: any) {
         const errorMessage = err?.message || "Failed to join match"

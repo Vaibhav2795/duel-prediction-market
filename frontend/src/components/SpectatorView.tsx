@@ -1,6 +1,5 @@
 import { useEffect, useState } from 'react';
 import { Chessboard } from 'react-chessboard';
-import { Chess } from 'chess.js';
 import { socketService } from '../services/socketService';
 
 interface SpectatorViewProps {
@@ -9,7 +8,6 @@ interface SpectatorViewProps {
 }
 
 export function SpectatorView({ matchId, onBack }: SpectatorViewProps) {
-	const [game, setGame] = useState(new Chess());
 	const [gameState, setGameState] = useState<string>('rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1');
 	const [status, setStatus] = useState<string>('waiting');
 	const [currentTurn, setCurrentTurn] = useState<'white' | 'black'>('white');
@@ -31,7 +29,6 @@ export function SpectatorView({ matchId, onBack }: SpectatorViewProps) {
 			setStatus(data.status);
 			setCurrentTurn(data.currentTurn);
 			setPlayers(data.players);
-			setGame(new Chess(data.gameState));
 			setLoading(false);
 		};
 
@@ -44,7 +41,6 @@ export function SpectatorView({ matchId, onBack }: SpectatorViewProps) {
 		}) => {
 			if (data.gameState) {
 				setGameState(data.gameState);
-				setGame(new Chess(data.gameState));
 			}
 			if (data.currentTurn) setCurrentTurn(data.currentTurn);
 			if (data.room?.currentTurn) setCurrentTurn(data.room.currentTurn);
@@ -59,7 +55,6 @@ export function SpectatorView({ matchId, onBack }: SpectatorViewProps) {
 			if (data.matchId === matchId) {
 				setStatus('finished');
 				setGameState(data.finalFen);
-				setGame(new Chess(data.finalFen));
 			}
 		};
 
