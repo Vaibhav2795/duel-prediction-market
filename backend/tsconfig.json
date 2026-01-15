@@ -25,6 +25,6 @@
     "noFallthroughCasesInSwitch": true,
     "types": ["node"]
   },
-  "include": ["src/**/*", "models/**/*"],
+  "include": ["src/**/*", "models/**/*", "netlify/**/*"],
   "exclude": ["node_modules", "dist"]
 }
