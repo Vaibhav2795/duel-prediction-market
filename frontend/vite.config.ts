@@ -11,7 +11,7 @@ export default defineConfig({
     port: 5173,
     proxy: {
       "/socket.io": {
-        target: "https://friendly-chebakia-39521d.netlify.app",
+        target: "https://duel-prediction-backend.onrender.com",
         ws: true,
       },
     },

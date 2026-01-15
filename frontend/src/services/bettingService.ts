@@ -9,7 +9,7 @@ import type {
 } from "../types/game"
 
 const API_BASE =
-  import.meta.env.VITE_API_URL || "https://friendly-chebakia-39521d.netlify.app"
+  import.meta.env.VITE_API_URL || "https://duel-prediction-backend.onrender.com"
 
 // Helper for API calls
 async function fetchApi<T>(
