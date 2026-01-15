@@ -21,8 +21,13 @@ import {
 } from "../constants/contracts";
 import { mantleSepolia } from "../config/chains";
 
-// Use RPC URL from chain config
-const RPC_URL = mantleSepolia.rpcUrls.default.http[0] || import.meta.env.VITE_RPC_URL || "https://rpc.testnet.mantle.xyz"
+// Use RPC URL from chain config with fallbacks
+const RPC_URL = 
+  import.meta.env.VITE_RPC_URL || 
+  mantleSepolia.rpcUrls.default.http[0] || 
+  "https://rpc.sepolia.mantle.xyz"
+
+console.log("Using RPC URL:", RPC_URL)
 
 // Create public client for read operations
 const publicClient = createPublicClient({
@@ -278,31 +283,71 @@ export function useBetOnMatchOnchain() {
       setError(null)
 
       try {
-        const matchIdUint64 = BigInt(matchId)
-        const amountWei = parseUnits(amount, 18)
-        const userAddress = wallet.address as Address;
+			// Test RPC connection first
+			try {
+				await publicClient.getBlockNumber();
+				console.log("RPC connection successful");
+			} catch (rpcErr) {
+				console.error("RPC connection test failed:", rpcErr);
+				throw new Error(
+					`Cannot connect to RPC endpoint (${RPC_URL}). Please check your network connection or RPC configuration.`
+				);
+			}
 
-		// Step 1: Check token allowance
-		const allowance = (await publicClient.readContract({
-			address: TOKEN_ADDRESS,
-			abi: TOKEN_ABI,
-			functionName: "allowance",
-			args: [userAddress, PREDICTION_MARKET_ADDRESS]
-		})) as bigint;
+			const matchIdUint64 = BigInt(matchId);
+			const amountWei = parseUnits(amount, 18);
+			const userAddress = wallet.address as Address;
 
-		// Step 2: Approve token if needed
-		if (allowance < amountWei) {
-			console.log("Token allowance insufficient, requesting approval...");
-			const approveData = encodeFunctionData({
+			// Step 1: Check token allowance
+			const allowance = (await publicClient.readContract({
+				address: TOKEN_ADDRESS,
 				abi: TOKEN_ABI,
-				functionName: "approve",
-				args: [PREDICTION_MARKET_ADDRESS, maxUint256]
+				functionName: "allowance",
+				args: [userAddress, PREDICTION_MARKET_ADDRESS]
+			})) as bigint;
+
+			// Step 2: Approve token if needed
+			if (allowance < amountWei) {
+				console.log(
+					"Token allowance insufficient, requesting approval..."
+				);
+				const approveData = encodeFunctionData({
+					abi: TOKEN_ABI,
+					functionName: "approve",
+					args: [PREDICTION_MARKET_ADDRESS, maxUint256]
+				});
+
+				const approveTx = await sendTransaction(
+					{
+						to: TOKEN_ADDRESS,
+						data: approveData,
+						value: BigInt(0)
+					},
+					{
+						address: userAddress,
+						uiOptions: {
+							showWalletUIs: false
+						}
+					}
+				);
+
+				await publicClient.waitForTransactionReceipt({
+					hash: approveTx.hash
+				});
+				console.log("Token approval confirmed");
+			}
+
+			// Step 3: Place the bet
+			const betData = encodeFunctionData({
+				abi: PREDICTION_MARKET_ABI,
+				functionName: "bet",
+				args: [matchIdUint64, outcome, amountWei]
 			});
 
-			const approveTx = await sendTransaction(
+			const tx = await sendTransaction(
 				{
-					to: TOKEN_ADDRESS,
-					data: approveData,
+					to: PREDICTION_MARKET_ADDRESS,
+					data: betData,
 					value: BigInt(0)
 				},
 				{
@@ -313,41 +358,21 @@ export function useBetOnMatchOnchain() {
 				}
 			);
 
-			await publicClient.waitForTransactionReceipt({
-				hash: approveTx.hash
-			});
-			console.log("Token approval confirmed");
-		}
+			await publicClient.waitForTransactionReceipt({ hash: tx.hash });
 
-		// Step 3: Place the bet
-		const betData = encodeFunctionData({
-			abi: PREDICTION_MARKET_ABI,
-			functionName: "bet",
-			args: [matchIdUint64, outcome, amountWei]
-		});
-
-		const tx = await sendTransaction(
-			{
-				to: PREDICTION_MARKET_ADDRESS,
-				data: betData,
-				value: BigInt(0)
-			},
-			{
-				address: userAddress,
-				uiOptions: {
-					showWalletUIs: false
-				}
-			}
-		);
-
-        await publicClient.waitForTransactionReceipt({ hash: tx.hash })
-
-        return {
-          success: true,
-          txHash: tx.hash,
-        }
-      } catch (err: any) {
+			return {
+				success: true,
+				txHash: tx.hash
+			};
+		} catch (err: any) {
         console.error("Bet placement error:", err);
+        console.error("Error details:", {
+			message: err?.message,
+			cause: err?.cause,
+			stack: err?.stack,
+			name: err?.name
+		});
+        
 		let errorMessage = "Failed to place bet";
 
 		if (err?.message) {
@@ -359,8 +384,16 @@ export function useBetOnMatchOnchain() {
 		}
 
 		// Provide more helpful error messages
-		if (errorMessage.includes("RPC") || errorMessage.includes("HTTP")) {
-			errorMessage = `Network error: ${errorMessage}. Please check your connection and try again.`;
+		if (
+			errorMessage.includes("RPC") ||
+			errorMessage.includes("HTTP") ||
+			errorMessage.includes("client error")
+		) {
+			errorMessage = `Network error: Unable to connect to blockchain RPC endpoint. This could be due to:
+- RPC endpoint is down or unreachable
+- Network connectivity issues
+- Invalid RPC URL configuration
+Please check your connection and RPC settings. Current RPC: ${RPC_URL}`;
 		} else if (
 			errorMessage.includes("insufficient funds") ||
 			errorMessage.includes("balance")
@@ -373,6 +406,11 @@ export function useBetOnMatchOnchain() {
 		) {
 			errorMessage =
 				"Transaction failed. The market may be inactive or already resolved.";
+		} else if (
+			errorMessage.includes("user rejected") ||
+			errorMessage.includes("User rejected")
+		) {
+			errorMessage = "Transaction was rejected. Please try again.";
 		}
 
         setError(errorMessage)

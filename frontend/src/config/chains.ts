@@ -7,6 +7,8 @@ export const mantleSepolia = {
   rpcUrls: {
     default: {
       http: [
+        // Public RPC endpoints (fallback if Alchemy fails)
+        "https://rpc.sepolia.mantle.xyz",
         "https://mantle-sepolia.g.alchemy.com/v2/sVUSe_hStYmanofM2Ke1gb6JkQuu2PZc",
       ],
     },
