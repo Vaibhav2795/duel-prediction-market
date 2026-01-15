@@ -5,12 +5,10 @@ import type {
 	UserPortfolio, 
 	MarketStats, 
 	Outcome, 
-	MarketStatus, 
-	MarketCategory,
 	MarketFilters 
 } from "../types/game";
 
-const API_BASE = import.meta.env.VITE_API_URL || "http://localhost:3000";
+const API_BASE = import.meta.env.VITE_API_URL || "https://friendly-chebakia-39521d.netlify.app";
 
 // Helper for API calls
 async function fetchApi<T>(endpoint: string, options?: RequestInit): Promise<T> {

@@ -1,5 +1,5 @@
 // Match REST API service
-const API_BASE = import.meta.env.VITE_API_URL || "http://localhost:3000"
+const API_BASE = import.meta.env.VITE_API_URL || "https://friendly-chebakia-39521d.netlify.app"
 
 export interface CreateMatchInput {
   player1: {

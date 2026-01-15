@@ -35,7 +35,7 @@ import type {
 } from "./types/game"
 import { useWalletBalance } from "./hooks/blockchain/useWalletBalance"
 import { Address } from "./hooks/blockchain/types"
-import { useBetOnMatchOnchain } from "./hooks/useOnchainHooks"
+import { useBetOnMatchOnchain, useJoinMatchOnchain } from "./hooks/useOnchainHooks"
 import { useMatchActions } from "./hooks/blockchain/useMatchActions"
 import { useAccount } from "wagmi"
 
@@ -83,8 +83,11 @@ function AppContent() {
   // Onchain betting hook
   const { betOnMatch, isLoading: isBettingOnchain, error: bettingError } = useBetOnMatchOnchain()
 
-  // Match actions hook for joining matches
-  const { joinMatch: joinMatchOnchain, isConnected: isWalletConnectedForMatch } = useMatchActions()
+  // Join match hook (uses Privy's sendTransaction)
+  const { joinMatch: joinMatchOnchain } = useJoinMatchOnchain()
+  
+  // Match actions hook for other operations
+  const { isConnected: isWalletConnectedForMatch } = useMatchActions()
   
   // Direct wagmi connection check for additional validation
   const { address: wagmiAddress, isConnected: isWagmiConnected } = useAccount()
@@ -548,14 +551,15 @@ function AppContent() {
       console.log("Joining match onchain:", matchId, "stake:", stakeAmount)
       setJoiningMatchId(matchId)
 
-      // Step 1: Call contract to join match (deposit stake)
+      // Step 1: Call contract to join match (deposit stake) - uses Privy's sendTransaction
       const result = await joinMatchOnchain(numericMatchId, stakeAmount.toString())
 
-      if (!result || !result.hash) {
+      if (!result || (!result.hash && !result.txHash)) {
         throw new Error("Failed to join match on blockchain")
       }
 
-      console.log("Match joined onchain, transaction hash:", result.hash)
+      const txHash = result.hash || result.txHash
+      console.log("Match joined onchain, transaction hash:", txHash)
 
       // Step 2: Wait a brief moment for transaction to be fully processed
       // This ensures the backend can verify the onchain state if needed
@@ -651,7 +655,6 @@ function AppContent() {
               onBack={() => navigate("/")}
               walletBalance={walletBalance}
               isConnected={authenticated}
-              userAddress={playerAddress}
               isBettingOnchain={isBettingOnchain}
               bettingError={bettingError}
             />
@@ -1040,7 +1043,6 @@ function MarketDetailWrapper({
   onBack,
   walletBalance,
   isConnected,
-  userAddress,
   isBettingOnchain,
   bettingError,
 }: {
@@ -1057,9 +1059,8 @@ function MarketDetailWrapper({
   onBack: () => void
   walletBalance: number
   isConnected: boolean
-  userAddress: string
-    isBettingOnchain?: boolean;
-    bettingError?: string | null;
+  isBettingOnchain?: boolean
+  bettingError?: string | null
 }) {
   const { marketId } = useParams()
   const [isLoading, setIsLoading] = useState(true)
@@ -1106,7 +1107,6 @@ function MarketDetailWrapper({
       onBack={onBack}
       walletBalance={walletBalance}
       isConnected={isConnected}
-      userAddress={userAddress}
       isBettingOnchain={isBettingOnchain}
       bettingError={bettingError}
     />

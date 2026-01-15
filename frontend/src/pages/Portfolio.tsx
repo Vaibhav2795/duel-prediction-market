@@ -1,7 +1,7 @@
 import { useState, useMemo } from "react";
-import type { Position, Bet, Market, UserPortfolio, Outcome } from "../types/game";
+import type { Market, UserPortfolio, Outcome } from "../types/game";
 import { PageContainer } from "../components/Layout";
-import { formatCurrency, formatAddress, formatTimeRemaining } from "../styles/designTokens";
+import { formatCurrency } from "../styles/designTokens";
 
 interface PortfolioPageProps {
 	portfolio: UserPortfolio | null;
