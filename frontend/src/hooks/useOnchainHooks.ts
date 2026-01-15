@@ -1,5 +1,6 @@
 import { useCallback, useState } from "react"
 import { usePrivy, useSendTransaction, useWallets } from "@privy-io/react-auth"
+import { useWalletClient, usePublicClient as useWagmiPublicClient } from "wagmi"
 import {
 	encodeFunctionData,
 	createPublicClient,
@@ -21,11 +22,12 @@ import {
 } from "../constants/contracts";
 import { mantleSepolia } from "../config/chains";
 
-// Use RPC URL from chain config with fallbacks
-const RPC_URL = 
-  import.meta.env.VITE_RPC_URL || 
-  mantleSepolia.rpcUrls.default.http[0] || 
-  "https://rpc.sepolia.mantle.xyz"
+// Use Alchemy RPC URL as primary, with fallbacks
+const RPC_URL =
+	import.meta.env.VITE_RPC_URL ||
+	"https://mantle-sepolia.g.alchemy.com/v2/sVUSe_hStYmanofM2Ke1gb6JkQuu2PZc" ||
+	mantleSepolia.rpcUrls.default.http[0] ||
+	"https://rpc.sepolia.mantle.xyz";
 
 console.log("Using RPC URL:", RPC_URL)
 
@@ -244,11 +246,13 @@ export function useJoinMatchOnchain() {
 
 /**
  * Hook to place a bet on a match
+ * Uses wagmi's writeContract to ensure correct RPC configuration
  */
 export function useBetOnMatchOnchain() {
-  const { sendTransaction } = useSendTransaction()
   const { wallets } = useWallets()
   const { authenticated } = usePrivy()
+  const { data: walletClient } = useWalletClient()
+  const wagmiPublicClient = useWagmiPublicClient()
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -273,6 +277,10 @@ export function useBetOnMatchOnchain() {
         throw new Error("No wallet available")
       }
 
+      if (!walletClient || !wagmiPublicClient) {
+        throw new Error("Wallet client not ready. Please ensure wallet is connected.")
+      }
+
       if (!TOKEN_ADDRESS || !PREDICTION_MARKET_ADDRESS) {
 			throw new Error(
 				"Contract addresses not configured. Please check environment variables."
@@ -285,7 +293,7 @@ export function useBetOnMatchOnchain() {
       try {
 			// Test RPC connection first
 			try {
-				await publicClient.getBlockNumber();
+				await wagmiPublicClient.getBlockNumber();
 				console.log("RPC connection successful");
 			} catch (rpcErr) {
 				console.error("RPC connection test failed:", rpcErr);
@@ -299,7 +307,7 @@ export function useBetOnMatchOnchain() {
 			const userAddress = wallet.address as Address;
 
 			// Step 1: Check token allowance
-			const allowance = (await publicClient.readContract({
+			const allowance = (await wagmiPublicClient.readContract({
 				address: TOKEN_ADDRESS,
 				abi: TOKEN_ABI,
 				functionName: "allowance",
@@ -311,58 +319,33 @@ export function useBetOnMatchOnchain() {
 				console.log(
 					"Token allowance insufficient, requesting approval..."
 				);
-				const approveData = encodeFunctionData({
+				
+				const approveHash = await walletClient.writeContract({
+					address: TOKEN_ADDRESS,
 					abi: TOKEN_ABI,
 					functionName: "approve",
 					args: [PREDICTION_MARKET_ADDRESS, maxUint256]
 				});
 
-				const approveTx = await sendTransaction(
-					{
-						to: TOKEN_ADDRESS,
-						data: approveData,
-						value: BigInt(0)
-					},
-					{
-						address: userAddress,
-						uiOptions: {
-							showWalletUIs: false
-						}
-					}
-				);
-
-				await publicClient.waitForTransactionReceipt({
-					hash: approveTx.hash
+				await wagmiPublicClient.waitForTransactionReceipt({
+					hash: approveHash
 				});
 				console.log("Token approval confirmed");
 			}
 
 			// Step 3: Place the bet
-			const betData = encodeFunctionData({
+			const txHash = await walletClient.writeContract({
+				address: PREDICTION_MARKET_ADDRESS,
 				abi: PREDICTION_MARKET_ABI,
 				functionName: "bet",
 				args: [matchIdUint64, outcome, amountWei]
 			});
 
-			const tx = await sendTransaction(
-				{
-					to: PREDICTION_MARKET_ADDRESS,
-					data: betData,
-					value: BigInt(0)
-				},
-				{
-					address: userAddress,
-					uiOptions: {
-						showWalletUIs: false
-					}
-				}
-			);
-
-			await publicClient.waitForTransactionReceipt({ hash: tx.hash });
+			await wagmiPublicClient.waitForTransactionReceipt({ hash: txHash });
 
 			return {
 				success: true,
-				txHash: tx.hash
+				txHash: txHash
 			};
 		} catch (err: any) {
         console.error("Bet placement error:", err);
@@ -419,7 +402,7 @@ Please check your connection and RPC settings. Current RPC: ${RPC_URL}`;
         setIsLoading(false)
       }
     },
-    [authenticated, wallets, sendTransaction]
+    [authenticated, wallets, walletClient, wagmiPublicClient]
   )
 
   return { betOnMatch, isLoading, error }
