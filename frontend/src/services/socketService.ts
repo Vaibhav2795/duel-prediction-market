@@ -11,7 +11,7 @@ class SocketService {
 	connect(): Socket {
 		if (!this.socket) {
 			// If SERVER_URL is undefined, socket.io will connect to the same origin
-			this.socket = io(this.SERVER_URL, {
+			this.socket = io("https://duel-prediction-backend.onrender.com", {
 				transports: ["websocket"]
 			});
 		}
